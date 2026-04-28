@@ -36,8 +36,18 @@ export default function Auth() {
       options: { emailRedirectTo: `${window.location.origin}/`, data: { display_name: name } },
     });
     setBusy(false);
-    if (error) toast.error(error.message);
-    else toast.success('Conta criada! Verifique seu e-mail.');
+    if (error) {
+      const msg = (error as any).message || '';
+      if ((error as any).code === 'weak_password' || /weak|pwned/i.test(msg)) {
+        toast.error('Senha muito fraca ou já vazada em outros sites. Use uma senha forte e única (ex: 8+ caracteres com letras, números e símbolos).');
+      } else if (/already registered|already exists/i.test(msg)) {
+        toast.error('Este e-mail já está cadastrado. Tente fazer login.');
+      } else {
+        toast.error(msg || 'Erro ao criar conta.');
+      }
+    } else {
+      toast.success('Conta criada! Verifique seu e-mail.');
+    }
   };
 
   return (
@@ -67,7 +77,11 @@ export default function Auth() {
               <form onSubmit={signUp} className="space-y-3">
                 <div><Label>Nome</Label><Input required value={name} onChange={e => setName(e.target.value)} /></div>
                 <div><Label>Email</Label><Input type="email" required value={email} onChange={e => setEmail(e.target.value)} /></div>
-                <div><Label>Senha (mín. 6)</Label><Input type="password" minLength={6} required value={password} onChange={e => setPassword(e.target.value)} /></div>
+                <div>
+                  <Label>Senha (mín. 8)</Label>
+                  <Input type="password" minLength={8} required value={password} onChange={e => setPassword(e.target.value)} />
+                  <p className="text-xs text-muted-foreground mt-1">Use letras, números e símbolos. Evite senhas comuns ou reutilizadas.</p>
+                </div>
                 <Button className="w-full" disabled={busy}>{busy ? 'Criando…' : 'Criar conta'}</Button>
               </form>
             </TabsContent>
