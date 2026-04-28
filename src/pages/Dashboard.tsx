@@ -11,7 +11,7 @@ export default function Dashboard() {
   const { data: month } = useMonth(monthKey);
   const { data: bills = [] } = useBills(month?.id);
   const { data: extras = [] } = useIncomesExtra(month?.id);
-  const { data: savings } = useSavings();
+  const { data: savings } = useSavings(month?.id);
   const { data: categories = [] } = useCategories();
 
   if (!month) return <div className="p-4 space-y-3"><Skeleton className="h-32" /><Skeleton className="h-40" /></div>;

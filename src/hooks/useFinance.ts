@@ -81,17 +81,22 @@ export function useIncomesExtra(monthId?: string) {
   });
 }
 
-export function useSavings() {
+export function useSavings(monthId?: string) {
   const { user } = useAuth();
   return useQuery({
-    queryKey: ['savings', user?.id],
+    queryKey: ['savings', user?.id, monthId],
     enabled: !!user,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('savings_log').select('*').order('created_at', { ascending: false });
       if (error) throw error;
-      const total = (data || []).reduce((s, r: any) => s + (r.kind === 'add' ? Number(r.amount) : -Number(r.amount)), 0);
-      return { total, log: data || [] };
+      const log = data || [];
+      const total = log.reduce((s, r: any) => s + (r.kind === 'add' ? Number(r.amount) : -Number(r.amount)), 0);
+      const monthNet = monthId
+        ? log.filter((r: any) => r.month_id === monthId)
+            .reduce((s, r: any) => s + (r.kind === 'add' ? Number(r.amount) : -Number(r.amount)), 0)
+        : 0;
+      return { total, monthNet, log };
     },
   });
 }
