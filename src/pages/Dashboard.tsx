@@ -82,11 +82,17 @@ export default function Dashboard() {
           <ul className="space-y-3">
             {byCategory.map(c => {
               const pct = totalBills > 0 ? (c.sum / totalBills) * 100 : 0;
+              const Icon = getCategoryIcon(c.icon);
               return (
                 <li key={c.id}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="font-medium">{c.name}</span>
-                    <span className="text-muted-foreground">{fmtMoney(c.sum)} · {pct.toFixed(0)}%</span>
+                  <div className="flex justify-between items-center text-sm mb-1.5">
+                    <span className="flex items-center gap-2 font-medium">
+                      <span className="size-6 rounded-md grid place-items-center" style={{ background: `${c.color}22`, color: c.color }}>
+                        <Icon className="size-3.5" />
+                      </span>
+                      {c.name}
+                    </span>
+                    <span className="text-muted-foreground text-xs">{fmtMoney(c.sum)} · {pct.toFixed(0)}%</span>
                   </div>
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: c.color }} />
