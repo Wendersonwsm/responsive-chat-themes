@@ -14,7 +14,211 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      bills: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          description: string
+          due_day: number | null
+          id: string
+          installment_current: number | null
+          installment_total: number | null
+          is_recurring: boolean
+          month_id: string
+          paid: boolean
+          parent_id: string | null
+          subcategory: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          category: string
+          created_at?: string
+          description: string
+          due_day?: number | null
+          id?: string
+          installment_current?: number | null
+          installment_total?: number | null
+          is_recurring?: boolean
+          month_id: string
+          paid?: boolean
+          parent_id?: string | null
+          subcategory?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          description?: string
+          due_day?: number | null
+          id?: string
+          installment_current?: number | null
+          installment_total?: number | null
+          is_recurring?: boolean
+          month_id?: string
+          paid?: boolean
+          parent_id?: string | null
+          subcategory?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bills_month_id_fkey"
+            columns: ["month_id"]
+            isOneToOne: false
+            referencedRelation: "months"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      categories: {
+        Row: {
+          color: string
+          created_at: string
+          icon: string
+          id: string
+          name: string
+          sort_order: number
+          subcategories: Json
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          name: string
+          sort_order?: number
+          subcategories?: Json
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          subcategories?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
+      incomes_extra: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string
+          id: string
+          month_id: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          description: string
+          id?: string
+          month_id: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string
+          id?: string
+          month_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incomes_extra_month_id_fkey"
+            columns: ["month_id"]
+            isOneToOne: false
+            referencedRelation: "months"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      months: {
+        Row: {
+          created_at: string
+          id: string
+          income: number
+          savings_contrib: number
+          user_id: string
+          year_month: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          income?: number
+          savings_contrib?: number
+          user_id: string
+          year_month: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          income?: number
+          savings_contrib?: number
+          user_id?: string
+          year_month?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          theme: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id: string
+          theme?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          theme?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      savings_log: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          kind: string
+          note: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          kind: string
+          note?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          kind?: string
+          note?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
