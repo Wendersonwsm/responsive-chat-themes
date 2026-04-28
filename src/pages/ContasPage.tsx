@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, ChevronLeft, ChevronRight, Trash2, Check, Repeat, Layers, Copy } from 'lucide-react';
 import { toast } from 'sonner';
+import { getCategoryIcon } from '@/lib/categoryIcons';
 
 type Filter = 'current' | 'overdue' | 'paid' | 'all';
 
@@ -29,6 +30,7 @@ export default function ContasPage() {
 
   // Form state
   const [description, setDescription] = useState('');
+  const [descTouched, setDescTouched] = useState(false);
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
   const [subcategory, setSubcategory] = useState('');
@@ -38,7 +40,6 @@ export default function ContasPage() {
 
   const selectedCat = categories.find(c => c.name === category);
 
-  // Sugestões com base em contas anteriores (auto-complete dinâmico)
   const recentDescriptions = useMemo(() => {
     const seen = new Set<string>();
     const list: string[] = [];
@@ -51,7 +52,7 @@ export default function ContasPage() {
     return list.slice(0, 6);
   }, [bills]);
 
-  // Auto-preenche categoria/valor quando escolhe descrição já usada
+  // Auto-preenche valor/categoria/dia se descrição já foi usada antes
   useEffect(() => {
     if (!description) return;
     const match = bills.find(b => b.description.toLowerCase() === description.toLowerCase());
@@ -62,8 +63,26 @@ export default function ContasPage() {
     }
   }, [description]);
 
+  // Auto-título a partir da categoria/subcategoria
+  const pickCategory = (name: string) => {
+    setCategory(name);
+    setSubcategory('');
+    if (!descTouched || !description) {
+      setDescription(name);
+      setDescTouched(false);
+    }
+  };
+  const pickSubcategory = (sub: string) => {
+    const newSub = subcategory === sub ? '' : sub;
+    setSubcategory(newSub);
+    if (!descTouched || description === category || description === `${category} · ${subcategory}`) {
+      setDescription(newSub ? `${category} · ${newSub}` : category);
+      setDescTouched(false);
+    }
+  };
+
   const resetForm = () => {
-    setDescription(''); setAmount(''); setCategory(''); setSubcategory('');
+    setDescription(''); setDescTouched(false); setAmount(''); setCategory(''); setSubcategory('');
     setDueDay(''); setIsRecurring(false); setInstallments('');
   };
 
@@ -89,7 +108,6 @@ export default function ContasPage() {
     toast.success('Conta removida');
   };
 
-  // Duplicar conta com 1 toque
   const duplicate = async (b: any) => {
     if (!user || !month) return;
     await supabase.from('bills').insert({
@@ -151,16 +169,57 @@ export default function ContasPage() {
             <SheetHeader><SheetTitle>Nova conta</SheetTitle></SheetHeader>
             <form onSubmit={addBill} className="space-y-4 mt-4">
               <div>
+                <Label>Categoria</Label>
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-1.5">
+                  {categories.map(c => {
+                    const Icon = getCategoryIcon(c.icon);
+                    const active = category === c.name;
+                    return (
+                      <button type="button" key={c.id} onClick={() => pickCategory(c.name)}
+                        className={`relative p-2.5 rounded-xl border-2 text-center transition active:scale-95 overflow-hidden ${
+                          active ? 'border-transparent text-white shadow-md' : 'border-border bg-card hover:border-muted-foreground/30'
+                        }`}
+                        style={active ? { background: `linear-gradient(135deg, ${c.color}, ${c.color}cc)` } : undefined}>
+                        <div className="size-9 mx-auto rounded-lg grid place-items-center mb-1.5"
+                          style={{ background: active ? 'rgba(255,255,255,0.22)' : `${c.color}1a`, color: active ? '#fff' : c.color }}>
+                          <Icon className="size-5" />
+                        </div>
+                        <span className="text-[11px] font-medium block leading-tight">{c.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {selectedCat && selectedCat.subcategories?.length > 0 && (
+                <div>
+                  <Label>Subcategoria</Label>
+                  <div className="flex gap-1.5 mt-1 flex-wrap">
+                    {selectedCat.subcategories.map(s => (
+                      <button type="button" key={s} onClick={() => pickSubcategory(s)}
+                        className={`text-xs px-3 py-1.5 rounded-full border transition active:scale-95 ${
+                          subcategory === s ? 'text-white border-transparent' : 'bg-muted border-transparent'
+                        }`}
+                        style={subcategory === s ? { background: selectedCat.color } : undefined}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
                 <Label>Descrição</Label>
-                <Input list="recent-descs" value={description} onChange={e => setDescription(e.target.value)}
-                  className="h-11 text-base" autoFocus required placeholder="Ex: Aluguel, Netflix…" />
+                <Input list="recent-descs" value={description}
+                  onChange={e => { setDescription(e.target.value); setDescTouched(true); }}
+                  className="h-11 text-base" required placeholder="Ex: Aluguel, Netflix…" />
                 <datalist id="recent-descs">
                   {recentDescriptions.map(d => <option key={d} value={d} />)}
                 </datalist>
                 {recentDescriptions.length > 0 && (
                   <div className="flex gap-1.5 mt-2 flex-wrap">
                     {recentDescriptions.slice(0, 4).map(d => (
-                      <button type="button" key={d} onClick={() => setDescription(d)}
+                      <button type="button" key={d} onClick={() => { setDescription(d); setDescTouched(true); }}
                         className="text-xs px-2.5 py-1 rounded-full bg-muted hover:bg-accent active:scale-95 transition">
                         {d}
                       </button>
@@ -182,37 +241,6 @@ export default function ContasPage() {
                   ))}
                 </div>
               </div>
-
-              <div>
-                <Label>Categoria</Label>
-                <div className="grid grid-cols-3 gap-2 mt-1">
-                  {categories.map(c => (
-                    <button type="button" key={c.id} onClick={() => { setCategory(c.name); setSubcategory(''); }}
-                      className={`p-2.5 rounded-lg border-2 text-xs font-medium text-center transition active:scale-95 ${
-                        category === c.name ? 'border-primary bg-primary/10' : 'border-border bg-card'
-                      }`}>
-                      <span className="block size-2 rounded-full mx-auto mb-1" style={{ background: c.color }} />
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {selectedCat && selectedCat.subcategories?.length > 0 && (
-                <div>
-                  <Label>Subcategoria</Label>
-                  <div className="flex gap-1.5 mt-1 flex-wrap">
-                    {selectedCat.subcategories.map(s => (
-                      <button type="button" key={s} onClick={() => setSubcategory(subcategory === s ? '' : s)}
-                        className={`text-xs px-3 py-1.5 rounded-full border transition active:scale-95 ${
-                          subcategory === s ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted border-transparent'
-                        }`}>
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               <div>
                 <Label>Vence dia (opcional)</Label>
@@ -277,11 +305,14 @@ export default function ContasPage() {
         {filtered.length === 0 && <Card className="p-6 text-center text-muted-foreground text-sm">Nenhuma conta neste filtro.</Card>}
         {filtered.map(b => {
           const cat = categories.find(c => c.name === b.category);
+          const Icon = getCategoryIcon(cat?.icon);
+          const color = cat?.color || 'hsl(var(--muted-foreground))';
           return (
             <Card key={b.id} className="p-3 flex items-center gap-3">
               <button onClick={() => togglePaid(b.id, b.paid)}
-                className={`size-11 rounded-full grid place-items-center shrink-0 transition active:scale-90 ${b.paid ? 'bg-success text-success-foreground' : 'bg-muted'}`}>
-                <Check className="size-5" />
+                className={`size-11 rounded-full grid place-items-center shrink-0 transition active:scale-90 ${b.paid ? 'bg-success text-success-foreground' : ''}`}
+                style={!b.paid ? { background: `${color}1a`, color } : undefined}>
+                {b.paid ? <Check className="size-5" /> : <Icon className="size-5" />}
               </button>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -290,7 +321,7 @@ export default function ContasPage() {
                   {b.is_recurring && <Repeat className="size-3 text-muted-foreground" />}
                 </div>
                 <p className="text-xs text-muted-foreground truncate">
-                  <span style={{ color: cat?.color }}>●</span> {b.category}{b.subcategory ? ` · ${b.subcategory}` : ''}{b.due_day ? ` · dia ${b.due_day}` : ''}
+                  <span style={{ color }}>●</span> {b.category}{b.subcategory ? ` · ${b.subcategory}` : ''}{b.due_day ? ` · dia ${b.due_day}` : ''}
                 </p>
               </div>
               <div className="text-right flex flex-col items-end gap-1">
