@@ -1,5 +1,5 @@
-import { useState, FormEvent } from 'react';
-import { todayKey, monthLabel, fmtMoney, shiftMonth, mkKey, parseKey } from '@/lib/format';
+import { useState, FormEvent, useMemo, useEffect } from 'react';
+import { todayKey, monthLabel, fmtMoney, shiftMonth, parseKey } from '@/lib/format';
 import { useMonth, useBills, useCategories, useInvalidate } from '@/hooks/useFinance';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -8,13 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, ChevronLeft, ChevronRight, Trash2, Check, Repeat, Layers } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Trash2, Check, Repeat, Layers, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 
 type Filter = 'current' | 'overdue' | 'paid' | 'all';
+
+const QUICK_AMOUNTS = [50, 100, 200, 500, 1000];
 
 export default function ContasPage() {
   const { user } = useAuth();
@@ -26,6 +27,46 @@ export default function ContasPage() {
   const { data: categories = [] } = useCategories();
   const invalidate = useInvalidate();
 
+  // Form state
+  const [description, setDescription] = useState('');
+  const [amount, setAmount] = useState('');
+  const [category, setCategory] = useState('');
+  const [subcategory, setSubcategory] = useState('');
+  const [dueDay, setDueDay] = useState('');
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [installments, setInstallments] = useState('');
+
+  const selectedCat = categories.find(c => c.name === category);
+
+  // Sugestões com base em contas anteriores (auto-complete dinâmico)
+  const recentDescriptions = useMemo(() => {
+    const seen = new Set<string>();
+    const list: string[] = [];
+    [...bills].reverse().forEach(b => {
+      if (!seen.has(b.description.toLowerCase())) {
+        seen.add(b.description.toLowerCase());
+        list.push(b.description);
+      }
+    });
+    return list.slice(0, 6);
+  }, [bills]);
+
+  // Auto-preenche categoria/valor quando escolhe descrição já usada
+  useEffect(() => {
+    if (!description) return;
+    const match = bills.find(b => b.description.toLowerCase() === description.toLowerCase());
+    if (match) {
+      if (!amount) setAmount(String(match.amount));
+      if (!category) setCategory(match.category);
+      if (!dueDay && match.due_day) setDueDay(String(match.due_day));
+    }
+  }, [description]);
+
+  const resetForm = () => {
+    setDescription(''); setAmount(''); setCategory(''); setSubcategory('');
+    setDueDay(''); setIsRecurring(false); setInstallments('');
+  };
+
   const today = new Date();
   const { year, month: mIdx } = parseKey(monthKey);
   const filtered = bills.filter(b => {
@@ -34,6 +75,9 @@ export default function ContasPage() {
     if (filter === 'current') return !b.paid;
     return true;
   });
+
+  const totalPending = bills.filter(b => !b.paid).reduce((s, b) => s + Number(b.amount), 0);
+  const totalPaid = bills.filter(b => b.paid).reduce((s, b) => s + Number(b.amount), 0);
 
   const togglePaid = async (id: string, paid: boolean) => {
     await supabase.from('bills').update({ paid: !paid }).eq('id', id);
@@ -45,26 +89,31 @@ export default function ContasPage() {
     toast.success('Conta removida');
   };
 
+  // Duplicar conta com 1 toque
+  const duplicate = async (b: any) => {
+    if (!user || !month) return;
+    await supabase.from('bills').insert({
+      user_id: user.id, month_id: month.id,
+      category: b.category, subcategory: b.subcategory,
+      description: b.description, amount: b.amount, due_day: b.due_day,
+      is_recurring: false, paid: false,
+    });
+    invalidate();
+    toast.success('Conta duplicada');
+  };
+
   const addBill = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user || !month) return;
-    const f = e.currentTarget;
-    const fd = new FormData(f);
-    const description = String(fd.get('description') || '').trim();
-    const amount = Number(fd.get('amount') || 0);
-    const category = String(fd.get('category') || '');
-    const subcategory = String(fd.get('subcategory') || '') || null;
-    const due_day = Number(fd.get('due_day') || 0) || null;
-    const is_recurring = fd.get('is_recurring') === 'on';
-    const installment_total = Number(fd.get('installment_total') || 0) || null;
-
-    if (!description || amount <= 0 || !category) {
+    const amt = Number(amount);
+    if (!description.trim() || amt <= 0 || !category) {
       toast.error('Preencha descrição, valor e categoria');
       return;
     }
+    const due_day = Number(dueDay) || null;
+    const installment_total = Number(installments) || null;
 
     if (installment_total && installment_total > 1) {
-      // Cria N parcelas, uma por mês
       const rows = [];
       for (let i = 0; i < installment_total; i++) {
         const ymKey = shiftMonth(monthKey, i);
@@ -72,75 +121,155 @@ export default function ContasPage() {
           .upsert({ user_id: user.id, year_month: ymKey }, { onConflict: 'user_id,year_month' })
           .select('id').single();
         if (m) rows.push({
-          user_id: user.id, month_id: m.id, category, subcategory,
-          description, amount, due_day,
+          user_id: user.id, month_id: m.id, category, subcategory: subcategory || null,
+          description, amount: amt, due_day,
           installment_current: i + 1, installment_total, is_recurring: false,
         });
       }
       await supabase.from('bills').insert(rows);
     } else {
       await supabase.from('bills').insert({
-        user_id: user.id, month_id: month.id, category, subcategory,
-        description, amount, due_day, is_recurring,
+        user_id: user.id, month_id: month.id, category, subcategory: subcategory || null,
+        description, amount: amt, due_day, is_recurring: isRecurring,
       });
     }
     invalidate();
     setOpen(false);
+    resetForm();
     toast.success('Conta adicionada');
   };
 
   return (
-    <div className="px-4 md:px-8 py-6 max-w-5xl mx-auto space-y-4">
+    <div className="px-4 md:px-8 py-4 md:py-6 max-w-5xl mx-auto space-y-3 pb-24">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Contas</h1>
-        <Sheet open={open} onOpenChange={setOpen}>
+        <h1 className="text-xl md:text-2xl font-bold">Contas</h1>
+        <Sheet open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetForm(); }}>
           <SheetTrigger asChild>
-            <Button size="sm"><Plus className="size-4 mr-1" />Nova</Button>
+            <Button size="sm" className="h-10 px-4"><Plus className="size-4 mr-1" />Nova</Button>
           </SheetTrigger>
-          <SheetContent side="bottom" className="max-h-[90vh] overflow-y-auto">
+          <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto rounded-t-2xl">
             <SheetHeader><SheetTitle>Nova conta</SheetTitle></SheetHeader>
-            <form onSubmit={addBill} className="space-y-3 mt-4">
-              <div><Label>Descrição</Label><Input name="description" required /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>Valor</Label><Input name="amount" type="number" step="0.01" required /></div>
-                <div><Label>Vence dia</Label><Input name="due_day" type="number" min={1} max={31} /></div>
+            <form onSubmit={addBill} className="space-y-4 mt-4">
+              <div>
+                <Label>Descrição</Label>
+                <Input list="recent-descs" value={description} onChange={e => setDescription(e.target.value)}
+                  className="h-11 text-base" autoFocus required placeholder="Ex: Aluguel, Netflix…" />
+                <datalist id="recent-descs">
+                  {recentDescriptions.map(d => <option key={d} value={d} />)}
+                </datalist>
+                {recentDescriptions.length > 0 && (
+                  <div className="flex gap-1.5 mt-2 flex-wrap">
+                    {recentDescriptions.slice(0, 4).map(d => (
+                      <button type="button" key={d} onClick={() => setDescription(d)}
+                        className="text-xs px-2.5 py-1 rounded-full bg-muted hover:bg-accent active:scale-95 transition">
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
+
+              <div>
+                <Label>Valor</Label>
+                <Input type="number" inputMode="decimal" step="0.01" value={amount}
+                  onChange={e => setAmount(e.target.value)} className="h-11 text-base" required placeholder="0,00" />
+                <div className="flex gap-1.5 mt-2 flex-wrap">
+                  {QUICK_AMOUNTS.map(v => (
+                    <button type="button" key={v} onClick={() => setAmount(String(v))}
+                      className="text-xs px-2.5 py-1 rounded-full bg-muted hover:bg-accent active:scale-95 transition">
+                      R$ {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <Label>Categoria</Label>
-                <Select name="category" required>
-                  <SelectTrigger><SelectValue placeholder="Escolha" /></SelectTrigger>
-                  <SelectContent>
-                    {categories.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <div className="grid grid-cols-3 gap-2 mt-1">
+                  {categories.map(c => (
+                    <button type="button" key={c.id} onClick={() => { setCategory(c.name); setSubcategory(''); }}
+                      className={`p-2.5 rounded-lg border-2 text-xs font-medium text-center transition active:scale-95 ${
+                        category === c.name ? 'border-primary bg-primary/10' : 'border-border bg-card'
+                      }`}>
+                      <span className="block size-2 rounded-full mx-auto mb-1" style={{ background: c.color }} />
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div><Label>Subcategoria (opcional)</Label><Input name="subcategory" /></div>
-              <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
-                <Label className="flex items-center gap-2 m-0"><Repeat className="size-4" /> Recorrente</Label>
-                <Switch name="is_recurring" />
-              </div>
+
+              {selectedCat && selectedCat.subcategories?.length > 0 && (
+                <div>
+                  <Label>Subcategoria</Label>
+                  <div className="flex gap-1.5 mt-1 flex-wrap">
+                    {selectedCat.subcategories.map(s => (
+                      <button type="button" key={s} onClick={() => setSubcategory(subcategory === s ? '' : s)}
+                        className={`text-xs px-3 py-1.5 rounded-full border transition active:scale-95 ${
+                          subcategory === s ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted border-transparent'
+                        }`}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
-                <Label className="flex items-center gap-2"><Layers className="size-4" /> Parcelas (deixe vazio se não for)</Label>
-                <Input name="installment_total" type="number" min={2} max={60} placeholder="Ex: 12" />
+                <Label>Vence dia (opcional)</Label>
+                <Input type="number" inputMode="numeric" min={1} max={31} value={dueDay}
+                  onChange={e => setDueDay(e.target.value)} className="h-11 text-base" placeholder="Ex: 10" />
               </div>
-              <Button type="submit" className="w-full">Adicionar</Button>
+
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
+                <Label className="flex items-center gap-2 m-0 cursor-pointer">
+                  <Repeat className="size-4" /> Repetir todo mês
+                </Label>
+                <Switch checked={isRecurring} onCheckedChange={setIsRecurring} />
+              </div>
+
+              <div>
+                <Label className="flex items-center gap-2"><Layers className="size-4" /> Parcelas</Label>
+                <div className="flex gap-1.5 mt-1 flex-wrap">
+                  {['', '2', '3', '6', '12', '24'].map(n => (
+                    <button type="button" key={n || 'none'} onClick={() => setInstallments(n)}
+                      className={`text-xs px-3 py-1.5 rounded-full border transition active:scale-95 ${
+                        installments === n ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted border-transparent'
+                      }`}>
+                      {n ? `${n}x` : 'Sem'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full h-12 text-base font-semibold">Adicionar conta</Button>
             </form>
           </SheetContent>
         </Sheet>
       </div>
 
-      <Card className="p-3 flex items-center justify-between">
-        <Button variant="ghost" size="icon" onClick={() => setMonthKey(shiftMonth(monthKey, -1))}><ChevronLeft /></Button>
-        <span className="font-medium">{monthLabel(monthKey)}</span>
-        <Button variant="ghost" size="icon" onClick={() => setMonthKey(shiftMonth(monthKey, 1))}><ChevronRight /></Button>
+      <div className="grid grid-cols-2 gap-2">
+        <Card className="p-3">
+          <p className="text-xs text-muted-foreground">A pagar</p>
+          <p className="text-lg font-bold text-destructive">{fmtMoney(totalPending)}</p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-xs text-muted-foreground">Pago</p>
+          <p className="text-lg font-bold text-success">{fmtMoney(totalPaid)}</p>
+        </Card>
+      </div>
+
+      <Card className="p-2 flex items-center justify-between">
+        <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setMonthKey(shiftMonth(monthKey, -1))}><ChevronLeft /></Button>
+        <span className="font-medium text-sm">{monthLabel(monthKey)}</span>
+        <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setMonthKey(shiftMonth(monthKey, 1))}><ChevronRight /></Button>
       </Card>
 
       <Tabs value={filter} onValueChange={v => setFilter(v as Filter)}>
-        <TabsList className="grid grid-cols-4 w-full">
-          <TabsTrigger value="current">Atuais</TabsTrigger>
-          <TabsTrigger value="overdue">Atrasadas</TabsTrigger>
-          <TabsTrigger value="paid">Pagas</TabsTrigger>
-          <TabsTrigger value="all">Todas</TabsTrigger>
+        <TabsList className="grid grid-cols-4 w-full h-10">
+          <TabsTrigger value="current" className="text-xs sm:text-sm">Atuais</TabsTrigger>
+          <TabsTrigger value="overdue" className="text-xs sm:text-sm">Atrasadas</TabsTrigger>
+          <TabsTrigger value="paid" className="text-xs sm:text-sm">Pagas</TabsTrigger>
+          <TabsTrigger value="all" className="text-xs sm:text-sm">Todas</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -151,22 +280,25 @@ export default function ContasPage() {
           return (
             <Card key={b.id} className="p-3 flex items-center gap-3">
               <button onClick={() => togglePaid(b.id, b.paid)}
-                className={`size-9 rounded-full grid place-items-center shrink-0 transition ${b.paid ? 'bg-success text-success-foreground' : 'bg-muted'}`}>
-                <Check className="size-4" />
+                className={`size-11 rounded-full grid place-items-center shrink-0 transition active:scale-90 ${b.paid ? 'bg-success text-success-foreground' : 'bg-muted'}`}>
+                <Check className="size-5" />
               </button>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <p className={`font-medium truncate ${b.paid ? 'line-through text-muted-foreground' : ''}`}>{b.description}</p>
                   {b.installment_total && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent text-accent-foreground">{b.installment_current}/{b.installment_total}</span>}
                   {b.is_recurring && <Repeat className="size-3 text-muted-foreground" />}
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground truncate">
                   <span style={{ color: cat?.color }}>●</span> {b.category}{b.subcategory ? ` · ${b.subcategory}` : ''}{b.due_day ? ` · dia ${b.due_day}` : ''}
                 </p>
               </div>
-              <div className="text-right">
-                <p className="font-semibold">{fmtMoney(Number(b.amount))}</p>
-                <button onClick={() => remove(b.id)} className="text-destructive text-xs mt-1"><Trash2 className="size-3.5 inline" /></button>
+              <div className="text-right flex flex-col items-end gap-1">
+                <p className="font-semibold text-sm">{fmtMoney(Number(b.amount))}</p>
+                <div className="flex gap-1">
+                  <button onClick={() => duplicate(b)} className="size-8 grid place-items-center text-muted-foreground hover:text-primary active:scale-90"><Copy className="size-3.5" /></button>
+                  <button onClick={() => remove(b.id)} className="size-8 grid place-items-center text-destructive active:scale-90"><Trash2 className="size-3.5" /></button>
+                </div>
               </div>
             </Card>
           );
