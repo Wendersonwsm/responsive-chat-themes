@@ -1,68 +1,45 @@
+## Objetivo
 
-# Plano — FinWise (versão React, completa e responsiva)
+Tornar as categorias mais úteis e bonitas:
+1. Adicionar **10 novas categorias padrão** com ícones e cores próprias.
+2. Quando o usuário escolher uma categoria/subcategoria ao adicionar conta, **o título da conta é preenchido automaticamente** com esse nome (continua editável).
+3. Redesenhar a exibição de categorias com **ícones grandes, cards coloridos e gradientes suaves** em vez de só um quadradinho de cor.
 
-Vamos reconstruir o FinWise como app React moderno dentro do Lovable, mantendo a identidade visual atual (tipografia Plus Jakarta Sans, cards arredondados, paleta atual) e o fluxo já validado no app original — porém **sem a área de Metas** e **sem o Tutorial/Onboarding**, com mais temas e foco total em mobile.
+## 1. Banco de dados (migração)
 
-## O que entra no app
+Adicionar via migração:
 
-### Telas principais (bottom nav no mobile, sidebar no desktop)
-1. **Dashboard** — saldo do mês, renda total, despesas totais, poupança acumulada, barra de progresso do mês, resumo por categoria.
-2. **Contas / Despesas** — lista de contas do mês ativo, adicionar/editar/excluir, marcar como paga, filtro (atuais, atrasadas, pagas, todas), categorias e subcategorias com ícones.
-3. **Renda** — renda principal do mês + rendas extras (lista editável).
-4. **Poupança** — saldo total, adicionar/retirar, contribuição do mês, histórico.
-5. **Histórico** — navegação por mês (anteriores e futuros), com o mesmo resumo.
-6. **Ajustes** — tema, categorias personalizadas, exportar/importar, sair.
+- **10 novas categorias padrão** para todos os usuários existentes (sem duplicar quem já tenha):
+  Educação, Pets, Vestuário, Beleza, Investimentos, Cartão, Impostos, Assinaturas, Presentes, Trabalho.
+- Atualizar o **trigger `handle_new_user`** para já criar essas 15 categorias + "Outros" para novos cadastros.
+- Corrigir nomes de ícones das categorias antigas (garantir que batem com os ícones do Lucide).
 
-> Removidos: aba **Metas** e fluxo de **Tutorial/Onboarding**.
+Cada categoria tem nome, ícone (nome Lucide), cor e subcategorias sugeridas (ex.: Pets → Ração, Veterinário, Petshop).
 
-### Funcionalidades extras (confirmadas)
-- **Categorias personalizáveis**: usuário cria/edita/exclui categorias e subcategorias, escolhe ícone e cor.
-- **Despesas recorrentes e parceladas**:
-  - Recorrente: replica automaticamente a cada novo mês até ser cancelada.
-  - Parcelada: ex.: "12x R$ 200" → cria 12 entradas, uma por mês, com indicador "3/12".
-- **Exportar / Importar dados**: download em **JSON** (backup completo) e **CSV** (lançamentos); importação por upload de JSON com confirmação de sobrescrita.
+## 2. Mapa de ícones (`src/lib/categoryIcons.ts`)
 
-### Login e dados na nuvem (Lovable Cloud)
-- E-mail/senha + Google.
-- Cada usuário tem seus próprios meses, despesas, renda, poupança e categorias.
-- Sincronização automática entre dispositivos.
+Novo arquivo que mapeia o nome do ícone salvo no banco (string) para o componente Lucide correspondente. Função `getCategoryIcon(name)` retorna o ícone certo, com fallback para `Tag`.
 
-### Temas (4 no total)
-- **Claro** (padrão do FinWise atual)
-- **Escuro** (padrão do FinWise atual)
-- **Azul Oceano** (novo)
-- **Roxo / Midnight** (novo)
+## 3. ContasPage — auto-título e categorias bonitas
 
-Seletor de tema em Ajustes, com preview e persistência por usuário.
+- **Auto-título**: ao clicar numa categoria, se o campo "Descrição" estiver vazio, preenche com o nome da categoria. Ao clicar numa subcategoria, atualiza para `"Categoria · Subcategoria"`. Se o usuário já tiver digitado algo, **não sobrescreve**.
+- **Grid de categorias** no formulário: cards quadrados com ícone Lucide grande no topo, fundo com tom da cor da categoria (ex.: `style={{ background: color + '15' }}`), borda colorida quando selecionado, animação `active:scale-95`.
+- **Lista de contas**: substituir o `●` pelo ícone real da categoria num círculo colorido (ex.: 28px com fundo `cor+20%`).
 
-### Responsividade mobile-first
-- Layout 100% mobile-first usando Tailwind.
-- **Mobile**: bottom navigation fixa, cards full-width, modais como bottom-sheets, áreas de toque ≥44px, suporte a safe-area (notch/Dynamic Island).
-- **Tablet/Desktop**: sidebar lateral, grid de 2-3 colunas no dashboard.
-- Testado nos breakpoints 360, 390, 414, 768, 1024, 1440.
+## 4. AjustesPage — gerenciamento bonito de categorias
 
-## Estrutura de dados (técnico)
+- Lista de categorias vira **grid 2 colunas** com cards mostrando:
+  ícone grande colorido + nome + contagem de subcategorias + botão remover.
+- No formulário "Nova categoria", adicionar **seletor visual de ícone** (grid clicável com os 17 ícones disponíveis) além do seletor de cor.
 
-Tabelas no Lovable Cloud:
-- `profiles` (id → auth.users, nome, tema preferido)
-- `categories` (user_id, nome, ícone, cor, subcategorias jsonb)
-- `months` (user_id, year_month, renda_principal, poupança_contrib)
-- `incomes_extra` (month_id, descrição, valor)
-- `bills` (month_id, categoria, subcategoria, descrição, valor, dia_vencimento, paga, recorrente, parcela_atual, parcela_total, parent_id)
-- `savings_log` (user_id, tipo add/withdraw, valor, data)
+## 5. Dashboard
 
-Todas com **RLS** restringindo acesso ao próprio `user_id`.
+Mostrar o ícone da categoria ao lado do nome no bloco "Despesas por categoria" para manter a identidade visual consistente.
 
-## Stack técnica
-- React + Vite + TypeScript + Tailwind (já no projeto)
-- shadcn/ui para componentes base
-- Lovable Cloud (auth + Postgres + RLS)
-- Tema via CSS variables HSL no `index.css` + classe no `<html>`
-- Ícones do upload (`icons.zip`) copiados para `public/icons/` e usados no PWA manifest
+## Arquivos afetados
 
-## Fora de escopo nesta primeira entrega
-- PWA / Service Worker (podemos adicionar depois)
-- Notificações push
-- Gráficos avançados (podemos adicionar em iteração seguinte se quiser)
-
-Após sua aprovação, eu construo tudo isso.
+- **Nova migração** (banco de dados)
+- **Novo**: `src/lib/categoryIcons.ts`
+- **Editado**: `src/pages/ContasPage.tsx` (auto-título + grid bonito + ícones na lista)
+- **Editado**: `src/pages/AjustesPage.tsx` (cards + seletor de ícone)
+- **Editado**: `src/pages/Dashboard.tsx` (ícones nas barras de categoria)
