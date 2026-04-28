@@ -11,15 +11,16 @@ export default function Dashboard() {
   const { data: month } = useMonth(monthKey);
   const { data: bills = [] } = useBills(month?.id);
   const { data: extras = [] } = useIncomesExtra(month?.id);
-  const { data: savings } = useSavings();
+  const { data: savings } = useSavings(month?.id);
   const { data: categories = [] } = useCategories();
 
   if (!month) return <div className="p-4 space-y-3"><Skeleton className="h-32" /><Skeleton className="h-40" /></div>;
 
+  const monthSavings = savings?.monthNet ?? Number(month.savings_contrib);
   const totalIncome = Number(month.income) + extras.reduce((s, e) => s + Number(e.amount), 0);
   const totalBills = bills.reduce((s, b) => s + Number(b.amount), 0);
   const paidBills = bills.filter(b => b.paid).reduce((s, b) => s + Number(b.amount), 0);
-  const balance = totalIncome - totalBills - Number(month.savings_contrib);
+  const balance = totalIncome - totalBills - monthSavings;
   const billsProgress = totalBills > 0 ? (paidBills / totalBills) * 100 : 0;
 
   const byCategory = categories.map(c => {
@@ -56,8 +57,8 @@ export default function Dashboard() {
           <p className="text-xl font-bold mt-1">{fmtMoney(savings?.total ?? 0)}</p>
         </Card>
         <Card className="p-4">
-          <div className="flex items-center gap-2 text-muted-foreground text-xs"><Wallet className="size-4" /> Este mês</div>
-          <p className="text-xl font-bold mt-1">{fmtMoney(Number(month.savings_contrib))}</p>
+          <div className="flex items-center gap-2 text-muted-foreground text-xs"><Wallet className="size-4" /> Poupado no mês</div>
+          <p className={`text-xl font-bold mt-1 ${monthSavings >= 0 ? '' : 'text-destructive'}`}>{fmtMoney(monthSavings)}</p>
         </Card>
       </div>
 
