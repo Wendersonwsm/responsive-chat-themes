@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { TrendingUp, TrendingDown, PiggyBank, Wallet } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getCategoryIcon } from '@/lib/categoryIcons';
 
 export default function Dashboard() {
   const [monthKey] = useState(todayKey());
