@@ -8,15 +8,19 @@ import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Wallet, Eye, EyeOff, Mail, Lock, User as UserIcon } from 'lucide-react';
+import { Wallet, Eye, EyeOff, Lock, User as UserIcon } from 'lucide-react';
+
+const USER_DOMAIN = 'finwise.local';
+const sanitize = (u: string) =>
+  u.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 32);
+const toEmail = (u: string) => `${sanitize(u)}@${USER_DOMAIN}`;
 
 export default function Auth() {
   const { user, loading } = useAuth();
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<'signin' | 'signup'>('signin');
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const firstSignIn = useRef<HTMLInputElement>(null);
   const firstSignUp = useRef<HTMLInputElement>(null);
@@ -31,24 +35,34 @@ export default function Auth() {
   if (loading) return <div className="min-h-[100dvh] grid place-items-center text-sm text-muted-foreground">Carregando…</div>;
   if (user) return <Navigate to="/" replace />;
 
+  const validate = (): string | null => {
+    const u = sanitize(username);
+    if (u.length < 3) return 'Usuário precisa ter ao menos 3 caracteres.';
+    if (password.length < 6) return 'Senha precisa ter ao menos 6 caracteres.';
+    return null;
+  };
+
   const signIn = async (e: FormEvent) => {
     e.preventDefault();
+    const err = validate(); if (err) return toast.error(err);
     setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    const { error } = await supabase.auth.signInWithPassword({ email: toEmail(username), password });
     setBusy(false);
     if (error) {
       const msg = error.message || '';
-      if (/invalid login/i.test(msg)) toast.error('E-mail ou senha incorretos.');
+      if (/invalid login/i.test(msg)) toast.error('Usuário ou senha incorretos.');
       else toast.error(msg);
     } else toast.success('Bem-vindo de volta!');
   };
 
   const signUp = async (e: FormEvent) => {
     e.preventDefault();
+    const err = validate(); if (err) return toast.error(err);
     setBusy(true);
+    const email = toEmail(username);
     const { error } = await supabase.auth.signUp({
-      email: email.trim(), password,
-      options: { emailRedirectTo: `${window.location.origin}/`, data: { display_name: name } },
+      email, password,
+      options: { emailRedirectTo: `${window.location.origin}/`, data: { display_name: username.trim() } },
     });
     if (error) {
       setBusy(false);
@@ -56,13 +70,12 @@ export default function Auth() {
       if ((error as any).code === 'weak_password' || /weak|pwned/i.test(msg)) {
         toast.error('Senha muito comum. Use uma senha mais forte.');
       } else if (/already registered|already exists/i.test(msg)) {
-        toast.error('E-mail já cadastrado. Faça login.');
+        toast.error('Usuário já cadastrado. Faça login.');
         setTab('signin');
       } else toast.error(msg || 'Erro ao criar conta.');
       return;
     }
-    // Auto-login (auto-confirm habilitado, sem precisar de email)
-    const { error: signErr } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    const { error: signErr } = await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
     if (signErr) toast.success('Conta criada! Faça login.');
     else toast.success('Conta criada com sucesso!');
@@ -89,12 +102,12 @@ export default function Auth() {
             <TabsContent value="signin" className="mt-0">
               <form onSubmit={signIn} className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="si-email" className="text-sm">E-mail</Label>
+                  <Label htmlFor="si-user" className="text-sm">Usuário</Label>
                   <div className="relative">
-                    <Mail className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <Input ref={firstSignIn} id="si-email" type="email" inputMode="email" autoComplete="email"
-                      enterKeyHint="next" required value={email} onChange={e => setEmail(e.target.value)}
-                      className="pl-10 h-12 text-base" placeholder="voce@email.com" />
+                    <UserIcon className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <Input ref={firstSignIn} id="si-user" autoComplete="username" autoCapitalize="none"
+                      enterKeyHint="next" required value={username} onChange={e => setUsername(e.target.value)}
+                      className="pl-10 h-12 text-base" placeholder="seu_usuario" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
@@ -119,22 +132,14 @@ export default function Auth() {
             <TabsContent value="signup" className="mt-0">
               <form onSubmit={signUp} className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="su-name" className="text-sm">Nome</Label>
+                  <Label htmlFor="su-user" className="text-sm">Usuário</Label>
                   <div className="relative">
                     <UserIcon className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <Input ref={firstSignUp} id="su-name" autoComplete="name" enterKeyHint="next"
-                      required value={name} onChange={e => setName(e.target.value)}
-                      className="pl-10 h-12 text-base" placeholder="Seu nome" />
+                    <Input ref={firstSignUp} id="su-user" autoComplete="username" autoCapitalize="none"
+                      enterKeyHint="next" required value={username} onChange={e => setUsername(e.target.value)}
+                      className="pl-10 h-12 text-base" placeholder="escolha um usuário" />
                   </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="su-email" className="text-sm">E-mail</Label>
-                  <div className="relative">
-                    <Mail className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <Input id="su-email" type="email" inputMode="email" autoComplete="email" enterKeyHint="next"
-                      required value={email} onChange={e => setEmail(e.target.value)}
-                      className="pl-10 h-12 text-base" placeholder="voce@email.com" />
-                  </div>
+                  <p className="text-[11px] text-muted-foreground">Apenas letras, números, . _ -</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="su-pwd" className="text-sm">Senha</Label>
@@ -153,7 +158,7 @@ export default function Auth() {
                   {busy ? 'Criando…' : 'Criar conta e entrar'}
                 </Button>
                 <p className="text-xs text-center text-muted-foreground">
-                  Sem verificação de e-mail. Acesso imediato. ⚡
+                  Sem e-mail. Sem verificação. Acesso imediato. ⚡
                 </p>
               </form>
             </TabsContent>
