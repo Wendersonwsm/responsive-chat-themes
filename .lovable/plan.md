@@ -1,45 +1,52 @@
-## Objetivo
+# Redesign mobile-first (banco digital) + PWA instalável
 
-Tornar as categorias mais úteis e bonitas:
-1. Adicionar **10 novas categorias padrão** com ícones e cores próprias.
-2. Quando o usuário escolher uma categoria/subcategoria ao adicionar conta, **o título da conta é preenchido automaticamente** com esse nome (continua editável).
-3. Redesenhar a exibição de categorias com **ícones grandes, cards coloridos e gradientes suaves** em vez de só um quadradinho de cor.
+## Visão geral
+Transformar o FinWise em uma experiência tipo Nubank/Inter/C6: hero card de saldo com gradiente premium, ações rápidas em pílulas, navegação inferior flutuante com microinterações, glassmorphism leve, tipografia hierárquica, animações suaves. Tornar o app instalável (PWA) com manifest + service worker mínimo (offline básico do shell), respeitando as regras do preview do Lovable (SW só em produção, nunca em iframe).
 
-## 1. Banco de dados (migração)
+## 1. Design system (src/index.css + tailwind.config.ts)
+- Adicionar tokens semânticos extras: `--gradient-hero`, `--gradient-card`, `--shadow-soft`, `--shadow-elevated`, `--surface-glass`.
+- Refinar tema claro/escuro com cores mais suaves (banco digital): primary mais vibrante mas com soft variant para fundos.
+- Tailwind: registrar keyframes `fade-in`, `scale-in`, `slide-up`, `shimmer`, `pulse-soft` + animações correspondentes; classes utilitárias `.glass`, `.hover-lift`, `.tap-scale` (active:scale-95).
+- Tipografia: manter Plus Jakarta Sans, ajustar pesos (700/800 em headings, 500 em body).
 
-Adicionar via migração:
+## 2. Layout / navegação (src/components/AppLayout.tsx)
+- Bottom nav redesenhada: flutuante (mx-3 mb-3, rounded-2xl, shadow-elevated, backdrop-blur), item ativo com pílula de fundo `primary-soft` e ícone preenchido + leve scale, transição suave.
+- Header mobile fixo translúcido (glass) com saudação + avatar/iniciais (link para Ajustes) e ícone de notificações/tema.
+- Safe areas iOS já tratadas; reforçar `pb-safe`.
 
-- **10 novas categorias padrão** para todos os usuários existentes (sem duplicar quem já tenha):
-  Educação, Pets, Vestuário, Beleza, Investimentos, Cartão, Impostos, Assinaturas, Presentes, Trabalho.
-- Atualizar o **trigger `handle_new_user`** para já criar essas 15 categorias + "Outros" para novos cadastros.
-- Corrigir nomes de ícones das categorias antigas (garantir que batem com os ícones do Lucide).
+## 3. Dashboard (src/pages/Dashboard.tsx)
+- Hero card de saldo: gradiente, botão "olho" para ocultar valores (estado local + persistência localStorage), chips de Renda/Despesas/Poupança.
+- Linha de **ações rápidas** (Quick Actions) — 4 botões circulares: Nova conta, Nova renda, Poupar, Histórico (navega para rotas existentes, prefill via query param simples).
+- Cards com `hover-lift` + `tap-scale` e `animate-fade-in` em cascata (delay incremental).
+- Seção "Próximas contas" (top 3 não pagas, ordenadas por vencimento) com tap para marcar paga.
+- Skeletons shimmer em loading.
 
-Cada categoria tem nome, ícone (nome Lucide), cor e subcategorias sugeridas (ex.: Pets → Ração, Veterinário, Petshop).
+## 4. Páginas internas (Contas, Renda, Poupança, Histórico, Ajustes)
+- Aplicar mesma linguagem: header de página com título + subtítulo, botão primário FAB-like fixo no canto inferior direito (acima da bottom nav) para "Adicionar".
+- Listas com cards arredondados, divisores sutis, swipe-to-action mantido se já existir (sem refatorar lógica).
+- Forms: inputs `h-12`, agrupados em cards, foco visível com ring primário, botões grandes full-width.
+- Apenas mudanças visuais/estruturais; nenhuma lógica de dados é alterada.
 
-## 2. Mapa de ícones (`src/lib/categoryIcons.ts`)
+## 5. PWA instalável
+- Instalar `vite-plugin-pwa`.
+- `vite.config.ts`: registrar VitePWA com `registerType: 'autoUpdate'`, `devOptions.enabled: false`, `navigateFallbackDenylist: [/^\/~oauth/]`, runtime caching `NetworkFirst` para navegações HTML.
+- Manifest: nome "FinWise", short_name "FinWise", `display: standalone`, `theme_color #2563eb`, `background_color` conforme tema, ícones já existentes em `/public/icons/` (192, 384, 512 com `purpose: any maskable`).
+- `src/main.tsx`: guarda anti-iframe/preview — desregistra SWs quando hostname inclui `lovableproject.com`/`id-preview--` ou em iframe; só registra em produção fora do preview.
+- Página `/install` opcional: card explicando como instalar (Android: prompt nativo via `beforeinstallprompt`; iOS: instruções "Compartilhar → Adicionar à Tela de Início"). Link discreto em Ajustes.
+- Avisar o usuário no chat: PWA só funciona de verdade na URL publicada, não no preview do editor.
 
-Novo arquivo que mapeia o nome do ícone salvo no banco (string) para o componente Lucide correspondente. Função `getCategoryIcon(name)` retorna o ícone certo, com fallback para `Tag`.
+## 6. Microinterações
+- Botões: `active:scale-95 transition-transform`.
+- Cards: `hover:-translate-y-0.5 hover:shadow-lg transition-all`.
+- Entrada de listas: `animate-fade-in` com `style={{ animationDelay }}`.
+- Toggle de saldo oculto: troca suave com `transition-opacity`.
+- Toasts (sonner) já configurados; manter.
 
-## 3. ContasPage — auto-título e categorias bonitas
+## Arquivos
+- Novos: `public/manifest.webmanifest` (gerado pelo plugin), `src/pages/InstallPage.tsx` (opcional).
+- Editados: `src/index.css`, `tailwind.config.ts`, `src/components/AppLayout.tsx`, `src/pages/Dashboard.tsx`, `src/pages/ContasPage.tsx`, `src/pages/RendaPage.tsx`, `src/pages/PoupancaPage.tsx`, `src/pages/HistoricoPage.tsx`, `src/pages/AjustesPage.tsx`, `src/main.tsx`, `vite.config.ts`, `index.html` (link manifest + meta theme-color por tema).
+- Dependência: `vite-plugin-pwa`.
 
-- **Auto-título**: ao clicar numa categoria, se o campo "Descrição" estiver vazio, preenche com o nome da categoria. Ao clicar numa subcategoria, atualiza para `"Categoria · Subcategoria"`. Se o usuário já tiver digitado algo, **não sobrescreve**.
-- **Grid de categorias** no formulário: cards quadrados com ícone Lucide grande no topo, fundo com tom da cor da categoria (ex.: `style={{ background: color + '15' }}`), borda colorida quando selecionado, animação `active:scale-95`.
-- **Lista de contas**: substituir o `●` pelo ícone real da categoria num círculo colorido (ex.: 28px com fundo `cor+20%`).
-
-## 4. AjustesPage — gerenciamento bonito de categorias
-
-- Lista de categorias vira **grid 2 colunas** com cards mostrando:
-  ícone grande colorido + nome + contagem de subcategorias + botão remover.
-- No formulário "Nova categoria", adicionar **seletor visual de ícone** (grid clicável com os 17 ícones disponíveis) além do seletor de cor.
-
-## 5. Dashboard
-
-Mostrar o ícone da categoria ao lado do nome no bloco "Despesas por categoria" para manter a identidade visual consistente.
-
-## Arquivos afetados
-
-- **Nova migração** (banco de dados)
-- **Novo**: `src/lib/categoryIcons.ts`
-- **Editado**: `src/pages/ContasPage.tsx` (auto-título + grid bonito + ícones na lista)
-- **Editado**: `src/pages/AjustesPage.tsx` (cards + seletor de ícone)
-- **Editado**: `src/pages/Dashboard.tsx` (ícones nas barras de categoria)
+## Fora do escopo
+- Nenhuma mudança de schema ou lógica de negócio.
+- Sem push notifications (apenas instalabilidade + cache shell).
