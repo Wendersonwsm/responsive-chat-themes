@@ -8,8 +8,7 @@ const isInIframe = (() => {
 })();
 const isPreviewHost =
   window.location.hostname.includes("id-preview--") ||
-  window.location.hostname.includes("lovableproject.com") ||
-  window.location.hostname.includes("lovable.app");
+  window.location.hostname.includes("lovableproject.com");
 
 if ((isPreviewHost || isInIframe) && "serviceWorker" in navigator) {
   navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
