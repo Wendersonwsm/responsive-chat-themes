@@ -78,18 +78,15 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <div className="pointer-events-auto glass rounded-2xl shadow-elevated border border-border/50 px-2 py-2">
             <div className="grid grid-cols-5 gap-1">
               {NAV.map(n => (
-                <NavLink key={n.to} to={n.to} end={n.end}
-                  className={({ isActive }) => cn(
-                    'flex flex-col items-center justify-center gap-1 py-1.5 rounded-xl text-[10px] font-medium transition-all tap-scale',
-                    isActive
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-muted-foreground'
-                  )}>
-                  {({ isActive }: any) => (
-                    <>
+                <NavLink key={n.to} to={n.to} end={n.end} className="tap-scale">
+                  {({ isActive }) => (
+                    <div className={cn(
+                      'flex flex-col items-center justify-center gap-1 py-1.5 rounded-xl text-[10px] font-medium transition-all',
+                      isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground'
+                    )}>
                       <n.icon className={cn('size-5 transition-transform', isActive && 'scale-110')} strokeWidth={isActive ? 2.5 : 2} />
                       <span className="leading-none">{n.label}</span>
-                    </>
+                    </div>
                   )}
                 </NavLink>
               ))}
