@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { LayoutDashboard, Receipt, Wallet, PiggyBank, History, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import OfflineBanner from './OfflineBanner';
+import { useOnlineSync } from '@/hooks/useOnlineSync';
 
 const NAV = [
   { to: '/', label: 'Início', icon: LayoutDashboard, end: true },
