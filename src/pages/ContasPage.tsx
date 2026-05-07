@@ -101,25 +101,50 @@ export default function ContasPage() {
   const totalPaid = bills.filter(b => b.paid).reduce((s, b) => s + Number(b.amount), 0);
 
   const togglePaid = async (id: string, paid: boolean) => {
-    await supabase.from('bills').update({ paid: !paid }).eq('id', id);
-    invalidate();
+    setBusyId(id);
+    const t = toast.loading(paid ? 'Marcando como pendente...' : 'Marcando como paga...');
+    try {
+      await supabase.from('bills').update({ paid: !paid }).eq('id', id);
+      invalidate();
+      toast.success(paid ? 'Conta pendente' : 'Conta paga', { id: t });
+    } catch {
+      toast.error('Não foi possível atualizar', { id: t });
+    } finally {
+      setBusyId(null);
+    }
   };
   const remove = async (id: string) => {
-    await supabase.from('bills').delete().eq('id', id);
-    invalidate();
-    toast.success('Conta removida');
+    setBusyId(id);
+    const t = toast.loading('Removendo conta...');
+    try {
+      await supabase.from('bills').delete().eq('id', id);
+      invalidate();
+      toast.success('Conta removida', { id: t });
+    } catch {
+      toast.error('Não foi possível remover', { id: t });
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const duplicate = async (b: any) => {
     if (!user || !month) return;
-    await supabase.from('bills').insert({
-      user_id: user.id, month_id: month.id,
-      category: b.category, subcategory: b.subcategory,
-      description: b.description, amount: b.amount, due_day: b.due_day,
-      is_recurring: false, paid: false,
-    });
-    invalidate();
-    toast.success('Conta duplicada');
+    setBusyId(b.id);
+    const t = toast.loading('Duplicando conta...');
+    try {
+      await supabase.from('bills').insert({
+        user_id: user.id, month_id: month.id,
+        category: b.category, subcategory: b.subcategory,
+        description: b.description, amount: b.amount, due_day: b.due_day,
+        is_recurring: false, paid: false,
+      });
+      invalidate();
+      toast.success('Conta duplicada', { id: t });
+    } catch {
+      toast.error('Não foi possível duplicar', { id: t });
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const addBill = async (e: FormEvent<HTMLFormElement>) => {
