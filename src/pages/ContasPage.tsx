@@ -37,6 +37,8 @@ export default function ContasPage() {
   const [dueDay, setDueDay] = useState('');
   const [isRecurring, setIsRecurring] = useState(false);
   const [installments, setInstallments] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const selectedCat = categories.find(c => c.name === category);
 
