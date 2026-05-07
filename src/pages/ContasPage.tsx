@@ -306,7 +306,9 @@ export default function ContasPage() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full h-12 text-base font-semibold">Adicionar conta</Button>
+              <Button type="submit" disabled={submitting} className="w-full h-12 text-base font-semibold">
+                {submitting ? (<><Loader2 className="size-4 mr-2 animate-spin" />Adicionando...</>) : 'Adicionar conta'}
+              </Button>
             </form>
           </SheetContent>
         </Sheet>
