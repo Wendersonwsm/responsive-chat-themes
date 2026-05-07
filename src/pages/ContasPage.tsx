@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, ChevronLeft, ChevronRight, Trash2, Check, Repeat, Layers, Copy } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Trash2, Check, Repeat, Layers, Copy, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getCategoryIcon } from '@/lib/categoryIcons';
 
@@ -37,6 +37,8 @@ export default function ContasPage() {
   const [dueDay, setDueDay] = useState('');
   const [isRecurring, setIsRecurring] = useState(false);
   const [installments, setInstallments] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const selectedCat = categories.find(c => c.name === category);
 
@@ -99,30 +101,55 @@ export default function ContasPage() {
   const totalPaid = bills.filter(b => b.paid).reduce((s, b) => s + Number(b.amount), 0);
 
   const togglePaid = async (id: string, paid: boolean) => {
-    await supabase.from('bills').update({ paid: !paid }).eq('id', id);
-    invalidate();
+    setBusyId(id);
+    const t = toast.loading(paid ? 'Marcando como pendente...' : 'Marcando como paga...');
+    try {
+      await supabase.from('bills').update({ paid: !paid }).eq('id', id);
+      invalidate();
+      toast.success(paid ? 'Conta pendente' : 'Conta paga', { id: t });
+    } catch {
+      toast.error('Não foi possível atualizar', { id: t });
+    } finally {
+      setBusyId(null);
+    }
   };
   const remove = async (id: string) => {
-    await supabase.from('bills').delete().eq('id', id);
-    invalidate();
-    toast.success('Conta removida');
+    setBusyId(id);
+    const t = toast.loading('Removendo conta...');
+    try {
+      await supabase.from('bills').delete().eq('id', id);
+      invalidate();
+      toast.success('Conta removida', { id: t });
+    } catch {
+      toast.error('Não foi possível remover', { id: t });
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const duplicate = async (b: any) => {
     if (!user || !month) return;
-    await supabase.from('bills').insert({
-      user_id: user.id, month_id: month.id,
-      category: b.category, subcategory: b.subcategory,
-      description: b.description, amount: b.amount, due_day: b.due_day,
-      is_recurring: false, paid: false,
-    });
-    invalidate();
-    toast.success('Conta duplicada');
+    setBusyId(b.id);
+    const t = toast.loading('Duplicando conta...');
+    try {
+      await supabase.from('bills').insert({
+        user_id: user.id, month_id: month.id,
+        category: b.category, subcategory: b.subcategory,
+        description: b.description, amount: b.amount, due_day: b.due_day,
+        is_recurring: false, paid: false,
+      });
+      invalidate();
+      toast.success('Conta duplicada', { id: t });
+    } catch {
+      toast.error('Não foi possível duplicar', { id: t });
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const addBill = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user || !month) return;
+    if (!user || !month || submitting) return;
     const amt = Number(amount);
     if (!description.trim() || amt <= 0 || !category) {
       toast.error('Preencha descrição, valor e categoria');
@@ -131,30 +158,40 @@ export default function ContasPage() {
     const due_day = Number(dueDay) || null;
     const installment_total = Number(installments) || null;
 
-    if (installment_total && installment_total > 1) {
-      const rows = [];
-      for (let i = 0; i < installment_total; i++) {
-        const ymKey = shiftMonth(monthKey, i);
-        const { data: m } = await supabase.from('months')
-          .upsert({ user_id: user.id, year_month: ymKey }, { onConflict: 'user_id,year_month' })
-          .select('id').single();
-        if (m) rows.push({
-          user_id: user.id, month_id: m.id, category, subcategory: subcategory || null,
-          description, amount: amt, due_day,
-          installment_current: i + 1, installment_total, is_recurring: false,
+    setSubmitting(true);
+    const t = toast.loading(installment_total && installment_total > 1 ? 'Criando parcelas...' : 'Adicionando conta...');
+    try {
+      if (installment_total && installment_total > 1) {
+        const rows = [];
+        for (let i = 0; i < installment_total; i++) {
+          const ymKey = shiftMonth(monthKey, i);
+          const { data: m } = await supabase.from('months')
+            .upsert({ user_id: user.id, year_month: ymKey }, { onConflict: 'user_id,year_month' })
+            .select('id').single();
+          if (m) rows.push({
+            user_id: user.id, month_id: m.id, category, subcategory: subcategory || null,
+            description, amount: amt, due_day,
+            installment_current: i + 1, installment_total, is_recurring: false,
+          });
+        }
+        const { error } = await supabase.from('bills').insert(rows);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('bills').insert({
+          user_id: user.id, month_id: month.id, category, subcategory: subcategory || null,
+          description, amount: amt, due_day, is_recurring: isRecurring,
         });
+        if (error) throw error;
       }
-      await supabase.from('bills').insert(rows);
-    } else {
-      await supabase.from('bills').insert({
-        user_id: user.id, month_id: month.id, category, subcategory: subcategory || null,
-        description, amount: amt, due_day, is_recurring: isRecurring,
-      });
+      invalidate();
+      setOpen(false);
+      resetForm();
+      toast.success('Conta adicionada', { id: t });
+    } catch (err: any) {
+      toast.error(err?.message || 'Não foi possível adicionar a conta', { id: t });
+    } finally {
+      setSubmitting(false);
     }
-    invalidate();
-    setOpen(false);
-    resetForm();
-    toast.success('Conta adicionada');
   };
 
   return (
@@ -269,7 +306,9 @@ export default function ContasPage() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full h-12 text-base font-semibold">Adicionar conta</Button>
+              <Button type="submit" disabled={submitting} className="w-full h-12 text-base font-semibold">
+                {submitting ? (<><Loader2 className="size-4 mr-2 animate-spin" />Adicionando...</>) : 'Adicionar conta'}
+              </Button>
             </form>
           </SheetContent>
         </Sheet>
@@ -327,8 +366,8 @@ export default function ContasPage() {
               <div className="text-right flex flex-col items-end gap-1">
                 <p className="font-semibold text-sm">{fmtMoney(Number(b.amount))}</p>
                 <div className="flex gap-1">
-                  <button onClick={() => duplicate(b)} className="size-8 grid place-items-center text-muted-foreground hover:text-primary active:scale-90"><Copy className="size-3.5" /></button>
-                  <button onClick={() => remove(b.id)} className="size-8 grid place-items-center text-destructive active:scale-90"><Trash2 className="size-3.5" /></button>
+                  <button disabled={busyId === b.id} onClick={() => duplicate(b)} className="size-8 grid place-items-center text-muted-foreground hover:text-primary active:scale-90 disabled:opacity-50">{busyId === b.id ? <Loader2 className="size-3.5 animate-spin" /> : <Copy className="size-3.5" />}</button>
+                  <button disabled={busyId === b.id} onClick={() => remove(b.id)} className="size-8 grid place-items-center text-destructive active:scale-90 disabled:opacity-50"><Trash2 className="size-3.5" /></button>
                 </div>
               </div>
             </Card>
