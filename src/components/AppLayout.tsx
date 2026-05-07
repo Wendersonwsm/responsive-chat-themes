@@ -16,6 +16,7 @@ const NAV = [
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
+  useOnlineSync();
 
   if (loading) return <div className="min-h-screen grid place-items-center text-muted-foreground">Carregando…</div>;
   if (!user) return <Navigate to="/auth" replace />;
