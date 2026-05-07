@@ -149,7 +149,7 @@ export default function ContasPage() {
 
   const addBill = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user || !month) return;
+    if (!user || !month || submitting) return;
     const amt = Number(amount);
     if (!description.trim() || amt <= 0 || !category) {
       toast.error('Preencha descrição, valor e categoria');
@@ -158,30 +158,40 @@ export default function ContasPage() {
     const due_day = Number(dueDay) || null;
     const installment_total = Number(installments) || null;
 
-    if (installment_total && installment_total > 1) {
-      const rows = [];
-      for (let i = 0; i < installment_total; i++) {
-        const ymKey = shiftMonth(monthKey, i);
-        const { data: m } = await supabase.from('months')
-          .upsert({ user_id: user.id, year_month: ymKey }, { onConflict: 'user_id,year_month' })
-          .select('id').single();
-        if (m) rows.push({
-          user_id: user.id, month_id: m.id, category, subcategory: subcategory || null,
-          description, amount: amt, due_day,
-          installment_current: i + 1, installment_total, is_recurring: false,
+    setSubmitting(true);
+    const t = toast.loading(installment_total && installment_total > 1 ? 'Criando parcelas...' : 'Adicionando conta...');
+    try {
+      if (installment_total && installment_total > 1) {
+        const rows = [];
+        for (let i = 0; i < installment_total; i++) {
+          const ymKey = shiftMonth(monthKey, i);
+          const { data: m } = await supabase.from('months')
+            .upsert({ user_id: user.id, year_month: ymKey }, { onConflict: 'user_id,year_month' })
+            .select('id').single();
+          if (m) rows.push({
+            user_id: user.id, month_id: m.id, category, subcategory: subcategory || null,
+            description, amount: amt, due_day,
+            installment_current: i + 1, installment_total, is_recurring: false,
+          });
+        }
+        const { error } = await supabase.from('bills').insert(rows);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('bills').insert({
+          user_id: user.id, month_id: month.id, category, subcategory: subcategory || null,
+          description, amount: amt, due_day, is_recurring: isRecurring,
         });
+        if (error) throw error;
       }
-      await supabase.from('bills').insert(rows);
-    } else {
-      await supabase.from('bills').insert({
-        user_id: user.id, month_id: month.id, category, subcategory: subcategory || null,
-        description, amount: amt, due_day, is_recurring: isRecurring,
-      });
+      invalidate();
+      setOpen(false);
+      resetForm();
+      toast.success('Conta adicionada', { id: t });
+    } catch (err: any) {
+      toast.error(err?.message || 'Não foi possível adicionar a conta', { id: t });
+    } finally {
+      setSubmitting(false);
     }
-    invalidate();
-    setOpen(false);
-    resetForm();
-    toast.success('Conta adicionada');
   };
 
   return (
