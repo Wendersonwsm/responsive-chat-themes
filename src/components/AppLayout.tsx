@@ -3,6 +3,7 @@ import { NavLink, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { LayoutDashboard, Receipt, Wallet, PiggyBank, History, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import OfflineBanner from './OfflineBanner';
 
 const NAV = [
   { to: '/', label: 'Início', icon: LayoutDashboard, end: true },
@@ -22,6 +23,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex bg-background">
+      <OfflineBanner />
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-64 flex-col border-r border-border bg-sidebar">
         <div className="px-5 py-5 border-b border-sidebar-border">
