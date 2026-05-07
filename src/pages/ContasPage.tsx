@@ -366,8 +366,8 @@ export default function ContasPage() {
               <div className="text-right flex flex-col items-end gap-1">
                 <p className="font-semibold text-sm">{fmtMoney(Number(b.amount))}</p>
                 <div className="flex gap-1">
-                  <button onClick={() => duplicate(b)} className="size-8 grid place-items-center text-muted-foreground hover:text-primary active:scale-90"><Copy className="size-3.5" /></button>
-                  <button onClick={() => remove(b.id)} className="size-8 grid place-items-center text-destructive active:scale-90"><Trash2 className="size-3.5" /></button>
+                  <button disabled={busyId === b.id} onClick={() => duplicate(b)} className="size-8 grid place-items-center text-muted-foreground hover:text-primary active:scale-90 disabled:opacity-50">{busyId === b.id ? <Loader2 className="size-3.5 animate-spin" /> : <Copy className="size-3.5" />}</button>
+                  <button disabled={busyId === b.id} onClick={() => remove(b.id)} className="size-8 grid place-items-center text-destructive active:scale-90 disabled:opacity-50"><Trash2 className="size-3.5" /></button>
                 </div>
               </div>
             </Card>
