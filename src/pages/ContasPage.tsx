@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, ChevronLeft, ChevronRight, Trash2, Check, Repeat, Layers, Copy } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Trash2, Check, Repeat, Layers, Copy, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getCategoryIcon } from '@/lib/categoryIcons';
 
