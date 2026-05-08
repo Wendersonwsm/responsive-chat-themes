@@ -2,11 +2,14 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { todayKey, monthLabel, fmtMoney } from '@/lib/format';
 import { useMonth, useBills, useIncomesExtra, useSavings, useCategories } from '@/hooks/useFinance';
+import { useInvestments } from '@/hooks/useInvestments';
+import { currentValue } from '@/lib/investments';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { TrendingUp, TrendingDown, PiggyBank, Wallet, Eye, EyeOff, Plus, History, ArrowDownToLine, Receipt } from 'lucide-react';
+import { TrendingUp, TrendingDown, PiggyBank, Wallet, Eye, EyeOff, Plus, History, Receipt, Sparkles, ArrowRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getCategoryIcon } from '@/lib/categoryIcons';
+import ChartsSection from '@/components/dashboard/ChartsSection';
 
 export default function Dashboard() {
   const [monthKey] = useState(todayKey());
@@ -15,6 +18,7 @@ export default function Dashboard() {
   const { data: extras = [] } = useIncomesExtra(month?.id);
   const { data: savings } = useSavings(month?.id);
   const { data: categories = [] } = useCategories();
+  const { data: investments = [] } = useInvestments();
   const [hidden, setHidden] = useState<boolean>(() => localStorage.getItem('finwise-hide') === '1');
 
   const toggleHide = () => {
@@ -132,6 +136,29 @@ export default function Dashboard() {
         <Progress value={billsProgress} className="h-2" />
         <p className="text-xs text-muted-foreground mt-2">{bills.filter(b => b.paid).length} de {bills.length} contas pagas</p>
       </Card>
+
+      {/* Investments quick card */}
+      <Link to="/investimentos" className="block tap-scale animate-fade-in" style={{ animationDelay: '210ms' }}>
+        <Card className="p-4 bg-gradient-hero text-primary-foreground border-0 shadow-elevated overflow-hidden relative">
+          <div className="absolute -right-6 -top-6 size-28 rounded-full bg-white/10 blur-2xl" />
+          <div className="relative flex items-center gap-3">
+            <div className="size-12 rounded-2xl bg-white/15 grid place-items-center"><Sparkles className="size-5" /></div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs opacity-90">Investimentos</p>
+              <p className="font-bold text-lg tabular-nums">{mask(fmtMoney(investments.reduce((s, i) => s + currentValue(i), 0)))}</p>
+              <p className="text-[11px] opacity-80">{investments.length} ativo{investments.length !== 1 ? 's' : ''}</p>
+            </div>
+            <ArrowRight className="size-5 opacity-90" />
+          </div>
+        </Card>
+      </Link>
+
+      {/* Charts section */}
+      <ChartsSection
+        income={totalIncome}
+        expenses={totalBills}
+        byCategory={byCategory.map(c => ({ name: c.name, value: c.sum, color: c.color }))}
+      />
 
       {/* Upcoming */}
       {upcoming.length > 0 && (

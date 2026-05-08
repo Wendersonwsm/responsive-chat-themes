@@ -141,6 +141,48 @@ export type Database = {
           },
         ]
       }
+      investments: {
+        Row: {
+          amount_invested: number
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          start_date: string
+          type: string
+          updated_at: string
+          user_id: string
+          yield_frequency: string
+          yield_rate: number
+        }
+        Insert: {
+          amount_invested?: number
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          start_date?: string
+          type?: string
+          updated_at?: string
+          user_id: string
+          yield_frequency?: string
+          yield_rate?: number
+        }
+        Update: {
+          amount_invested?: number
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          start_date?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+          yield_frequency?: string
+          yield_rate?: number
+        }
+        Relationships: []
+      }
       months: {
         Row: {
           created_at: string

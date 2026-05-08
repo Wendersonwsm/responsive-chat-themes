@@ -1,27 +1,39 @@
 import { ReactNode } from 'react';
 import { NavLink, Navigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { LayoutDashboard, Receipt, Wallet, PiggyBank, History, Settings } from 'lucide-react';
+import { useProfile } from '@/hooks/useFinance';
+import { LayoutDashboard, Receipt, Wallet, PiggyBank, History, Settings, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import OfflineBanner from './OfflineBanner';
 import { useOnlineSync } from '@/hooks/useOnlineSync';
+import Avatar from './Avatar';
 
 const NAV = [
   { to: '/', label: 'Início', icon: LayoutDashboard, end: true },
   { to: '/contas', label: 'Contas', icon: Receipt },
   { to: '/renda', label: 'Renda', icon: Wallet },
+  { to: '/investimentos', label: 'Investir', icon: TrendingUp },
+  { to: '/historico', label: 'Histórico', icon: History },
+];
+
+const SIDE_NAV = [
+  { to: '/', label: 'Início', icon: LayoutDashboard, end: true },
+  { to: '/contas', label: 'Contas', icon: Receipt },
+  { to: '/renda', label: 'Renda', icon: Wallet },
   { to: '/poupanca', label: 'Poupança', icon: PiggyBank },
+  { to: '/investimentos', label: 'Investimentos', icon: TrendingUp },
   { to: '/historico', label: 'Histórico', icon: History },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
+  const { data: profile } = useProfile();
   useOnlineSync();
 
   if (loading) return <div className="min-h-screen grid place-items-center text-muted-foreground">Carregando…</div>;
   if (!user) return <Navigate to="/auth" replace />;
 
-  const initials = (user.user_metadata?.username || user.email || '?').slice(0, 2).toUpperCase();
+  const displayName = profile?.display_name || user.user_metadata?.username || user.email?.split('@')[0] || 'Usuário';
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -29,16 +41,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-64 flex-col border-r border-border bg-sidebar">
         <div className="px-5 py-5 border-b border-sidebar-border">
-          <div className="flex items-center gap-2.5">
-            <div className="size-10 rounded-2xl bg-gradient-hero text-primary-foreground grid place-items-center font-bold shadow-elevated">F</div>
-            <div>
-              <div className="font-bold leading-none text-base">FinWise</div>
-              <div className="text-xs text-muted-foreground mt-1">Banco pessoal</div>
+          <Link to="/perfil" className="flex items-center gap-3 group">
+            <Avatar name={displayName} size="md" status="verified" />
+            <div className="min-w-0">
+              <div className="font-bold leading-none text-sm truncate group-hover:text-primary transition-colors">{displayName}</div>
+              <div className="text-[11px] text-muted-foreground mt-1 truncate">Conta verificada</div>
             </div>
-          </div>
+          </Link>
         </div>
         <nav className="flex-1 p-3 space-y-1">
-          {NAV.map(n => (
+          {SIDE_NAV.map(n => (
             <NavLink key={n.to} to={n.to} end={n.end}
               className={({ isActive }) => cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
@@ -68,9 +80,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <div className="size-8 rounded-xl bg-gradient-hero grid place-items-center text-primary-foreground font-bold text-sm shadow-soft">F</div>
               <span className="font-bold">FinWise</span>
             </div>
-            <Link to="/ajustes"
-              className="size-9 rounded-full bg-muted grid place-items-center text-xs font-semibold tap-scale">
-              {initials}
+            <Link to="/perfil" className="flex items-center gap-2 pr-1 pl-3 py-1 rounded-full bg-muted/70 tap-scale hover-lift">
+              <span className="text-xs font-semibold max-w-[80px] truncate hidden xs:inline">{displayName}</span>
+              <Avatar name={displayName} size="sm" status="verified" />
             </Link>
           </div>
         </header>

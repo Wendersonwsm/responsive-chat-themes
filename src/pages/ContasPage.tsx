@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, ChevronLeft, ChevronRight, Trash2, Check, Repeat, Layers, Copy, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getCategoryIcon } from '@/lib/categoryIcons';
+import InstallmentProgressDialog, { InstallmentStatus } from '@/components/InstallmentProgressDialog';
 
 type Filter = 'current' | 'overdue' | 'paid' | 'all';
 
@@ -39,6 +40,18 @@ export default function ContasPage() {
   const [installments, setInstallments] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  // Installment progress dialog state
+  const [progressOpen, setProgressOpen] = useState(false);
+  const [progressStatus, setProgressStatus] = useState<InstallmentStatus>('idle');
+  const [progressCurrent, setProgressCurrent] = useState(0);
+  const [progressTotal, setProgressTotal] = useState(0);
+  const [progressError, setProgressError] = useState<string | undefined>();
+  const [pendingRetry, setPendingRetry] = useState<{ startAt: number } | null>(null);
+  const [pendingPayload, setPendingPayload] = useState<null | {
+    user_id: string; category: string; subcategory: string | null;
+    description: string; amount: number; due_day: number | null; installment_total: number;
+  }>(null);
 
   const selectedCat = categories.find(c => c.name === category);
 
@@ -147,6 +160,51 @@ export default function ContasPage() {
     }
   };
 
+  const runInstallments = async (
+    payload: NonNullable<typeof pendingPayload>,
+    startAt = 0,
+  ) => {
+    setProgressOpen(true);
+    setProgressStatus('running');
+    setProgressTotal(payload.installment_total);
+    setProgressCurrent(startAt);
+    setProgressError(undefined);
+    let lastDone = startAt;
+
+    try {
+      for (let i = startAt; i < payload.installment_total; i++) {
+        const ymKey = shiftMonth(monthKey, i);
+        const { data: m, error: mErr } = await supabase.from('months')
+          .upsert({ user_id: payload.user_id, year_month: ymKey }, { onConflict: 'user_id,year_month' })
+          .select('id').single();
+        if (mErr || !m) throw mErr || new Error('Falha ao preparar mês');
+        const { error: bErr } = await supabase.from('bills').insert({
+          user_id: payload.user_id, month_id: m.id, category: payload.category,
+          subcategory: payload.subcategory, description: payload.description,
+          amount: payload.amount, due_day: payload.due_day,
+          installment_current: i + 1, installment_total: payload.installment_total,
+          is_recurring: false,
+        });
+        if (bErr) throw bErr;
+        lastDone = i + 1;
+        setProgressCurrent(lastDone);
+        // tiny breath so the UI can paint the new value smoothly
+        await new Promise(r => setTimeout(r, 60));
+      }
+      setProgressStatus('success');
+      invalidate();
+      setOpen(false);
+      resetForm();
+      setPendingPayload(null);
+      setPendingRetry(null);
+      setTimeout(() => setProgressOpen(false), 1800);
+    } catch (err: any) {
+      setProgressStatus('error');
+      setProgressError(err?.message || 'Não foi possível concluir.');
+      setPendingRetry({ startAt: lastDone });
+    }
+  };
+
   const addBill = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user || !month || submitting) return;
@@ -156,33 +214,26 @@ export default function ContasPage() {
       return;
     }
     const due_day = Number(dueDay) || null;
-    const installment_total = Number(installments) || null;
+    const installment_total = Number(installments) || 0;
+
+    if (installment_total > 1) {
+      const payload = {
+        user_id: user.id, category, subcategory: subcategory || null,
+        description, amount: amt, due_day, installment_total,
+      };
+      setPendingPayload(payload);
+      await runInstallments(payload, 0);
+      return;
+    }
 
     setSubmitting(true);
-    const t = toast.loading(installment_total && installment_total > 1 ? 'Criando parcelas...' : 'Adicionando conta...');
+    const t = toast.loading('Adicionando conta...');
     try {
-      if (installment_total && installment_total > 1) {
-        const rows = [];
-        for (let i = 0; i < installment_total; i++) {
-          const ymKey = shiftMonth(monthKey, i);
-          const { data: m } = await supabase.from('months')
-            .upsert({ user_id: user.id, year_month: ymKey }, { onConflict: 'user_id,year_month' })
-            .select('id').single();
-          if (m) rows.push({
-            user_id: user.id, month_id: m.id, category, subcategory: subcategory || null,
-            description, amount: amt, due_day,
-            installment_current: i + 1, installment_total, is_recurring: false,
-          });
-        }
-        const { error } = await supabase.from('bills').insert(rows);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('bills').insert({
-          user_id: user.id, month_id: month.id, category, subcategory: subcategory || null,
-          description, amount: amt, due_day, is_recurring: isRecurring,
-        });
-        if (error) throw error;
-      }
+      const { error } = await supabase.from('bills').insert({
+        user_id: user.id, month_id: month.id, category, subcategory: subcategory || null,
+        description, amount: amt, due_day, is_recurring: isRecurring,
+      });
+      if (error) throw error;
       invalidate();
       setOpen(false);
       resetForm();
@@ -374,6 +425,16 @@ export default function ContasPage() {
           );
         })}
       </ul>
+
+      <InstallmentProgressDialog
+        open={progressOpen}
+        status={progressStatus}
+        current={progressCurrent}
+        total={progressTotal}
+        errorMessage={progressError}
+        onRetry={() => pendingPayload && pendingRetry && runInstallments(pendingPayload, pendingRetry.startAt)}
+        onClose={() => { setProgressOpen(false); setPendingRetry(null); }}
+      />
     </div>
   );
 }

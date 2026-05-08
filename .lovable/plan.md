@@ -1,52 +1,136 @@
-# Redesign mobile-first (banco digital) + PWA instalável
-
 ## Visão geral
-Transformar o FinWise em uma experiência tipo Nubank/Inter/C6: hero card de saldo com gradiente premium, ações rápidas em pílulas, navegação inferior flutuante com microinterações, glassmorphism leve, tipografia hierárquica, animações suaves. Tornar o app instalável (PWA) com manifest + service worker mínimo (offline básico do shell), respeitando as regras do preview do Lovable (SW só em produção, nunca em iframe).
 
-## 1. Design system (src/index.css + tailwind.config.ts)
-- Adicionar tokens semânticos extras: `--gradient-hero`, `--gradient-card`, `--shadow-soft`, `--shadow-elevated`, `--surface-glass`.
-- Refinar tema claro/escuro com cores mais suaves (banco digital): primary mais vibrante mas com soft variant para fundos.
-- Tailwind: registrar keyframes `fade-in`, `scale-in`, `slide-up`, `shimmer`, `pulse-soft` + animações correspondentes; classes utilitárias `.glass`, `.hover-lift`, `.tap-scale` (active:scale-95).
-- Tipografia: manter Plus Jakarta Sans, ajustar pesos (700/800 em headings, 500 em body).
+Quatro frentes de melhoria, todas mantendo o estilo fintech atual (gradient hero, glass, hover-lift) e responsivas mobile-first.
 
-## 2. Layout / navegação (src/components/AppLayout.tsx)
-- Bottom nav redesenhada: flutuante (mx-3 mb-3, rounded-2xl, shadow-elevated, backdrop-blur), item ativo com pílula de fundo `primary-soft` e ícone preenchido + leve scale, transição suave.
-- Header mobile fixo translúcido (glass) com saudação + avatar/iniciais (link para Ajustes) e ícone de notificações/tema.
-- Safe areas iOS já tratadas; reforçar `pb-safe`.
+---
 
-## 3. Dashboard (src/pages/Dashboard.tsx)
-- Hero card de saldo: gradiente, botão "olho" para ocultar valores (estado local + persistência localStorage), chips de Renda/Despesas/Poupança.
-- Linha de **ações rápidas** (Quick Actions) — 4 botões circulares: Nova conta, Nova renda, Poupar, Histórico (navega para rotas existentes, prefill via query param simples).
-- Cards com `hover-lift` + `tap-scale` e `animate-fade-in` em cascata (delay incremental).
-- Seção "Próximas contas" (top 3 não pagas, ordenadas por vencimento) com tap para marcar paga.
-- Skeletons shimmer em loading.
+## 1. Indicador de progresso ao criar parcelas
 
-## 4. Páginas internas (Contas, Renda, Poupança, Histórico, Ajustes)
-- Aplicar mesma linguagem: header de página com título + subtítulo, botão primário FAB-like fixo no canto inferior direito (acima da bottom nav) para "Adicionar".
-- Listas com cards arredondados, divisores sutis, swipe-to-action mantido se já existir (sem refatorar lógica).
-- Forms: inputs `h-12`, agrupados em cards, foco visível com ring primário, botões grandes full-width.
-- Apenas mudanças visuais/estruturais; nenhuma lógica de dados é alterada.
+Em `src/pages/ContasPage.tsx`, ao salvar uma conta parcelada (N parcelas), substituir o toast simples por um **modal de progresso** elegante:
 
-## 5. PWA instalável
-- Instalar `vite-plugin-pwa`.
-- `vite.config.ts`: registrar VitePWA com `registerType: 'autoUpdate'`, `devOptions.enabled: false`, `navigateFallbackDenylist: [/^\/~oauth/]`, runtime caching `NetworkFirst` para navegações HTML.
-- Manifest: nome "FinWise", short_name "FinWise", `display: standalone`, `theme_color #2563eb`, `background_color` conforme tema, ícones já existentes em `/public/icons/` (192, 384, 512 com `purpose: any maskable`).
-- `src/main.tsx`: guarda anti-iframe/preview — desregistra SWs quando hostname inclui `lovableproject.com`/`id-preview--` ou em iframe; só registra em produção fora do preview.
-- Página `/install` opcional: card explicando como instalar (Android: prompt nativo via `beforeinstallprompt`; iOS: instruções "Compartilhar → Adicionar à Tela de Início"). Link discreto em Ajustes.
-- Avisar o usuário no chat: PWA só funciona de verdade na URL publicada, não no preview do editor.
+- Componente novo `src/components/InstallmentProgressDialog.tsx` (baseado em `Dialog`).
+- Mostra: contador "X de N parcelas criadas", quantidade restante, barra `Progress` animada, percentual.
+- Card com ícone pulsante enquanto processa.
+- Cria as parcelas em loop sequencial (uma inserção por vez) para que o progresso seja real, atualizando estado a cada `await`.
+- Ao terminar: troca para estado de sucesso com ícone `CheckCircle2` animado (`animate-scale-in`), mensagem "N parcelas criadas com sucesso" e auto-fecha em ~1.5s.
+- Em caso de erro no meio: mostra quantas foram criadas e botão "Tentar novamente" para as restantes.
 
-## 6. Microinterações
-- Botões: `active:scale-95 transition-transform`.
-- Cards: `hover:-translate-y-0.5 hover:shadow-lg transition-all`.
-- Entrada de listas: `animate-fade-in` com `style={{ animationDelay }}`.
-- Toggle de saldo oculto: troca suave com `transition-opacity`.
-- Toasts (sonner) já configurados; manter.
+---
 
-## Arquivos
-- Novos: `public/manifest.webmanifest` (gerado pelo plugin), `src/pages/InstallPage.tsx` (opcional).
-- Editados: `src/index.css`, `tailwind.config.ts`, `src/components/AppLayout.tsx`, `src/pages/Dashboard.tsx`, `src/pages/ContasPage.tsx`, `src/pages/RendaPage.tsx`, `src/pages/PoupancaPage.tsx`, `src/pages/HistoricoPage.tsx`, `src/pages/AjustesPage.tsx`, `src/main.tsx`, `vite.config.ts`, `index.html` (link manifest + meta theme-color por tema).
-- Dependência: `vite-plugin-pwa`.
+## 2. Dashboard com gráficos interativos
 
-## Fora do escopo
-- Nenhuma mudança de schema ou lógica de negócio.
-- Sem push notifications (apenas instalabilidade + cache shell).
+Reformular `src/pages/Dashboard.tsx` mantendo o hero/saldo, ações rápidas e adicionando uma **seção "Análises"**:
+
+- Usar **Recharts** (instalar `recharts`).
+- Novo componente `src/components/dashboard/ChartsSection.tsx` com abas/chips para alternar entre gráficos.
+- Componente `src/components/dashboard/ChartPicker.tsx` (sheet/popover) para o usuário escolher quais gráficos mostrar; seleção persistida em `localStorage` (`finwise-charts`).
+- Gráficos disponíveis (cada um em seu próprio arquivo em `src/components/dashboard/charts/`):
+  - **EntradasVsSaidasChart** — BarChart agrupado do mês atual.
+  - **GastosPorCategoriaChart** — PieChart/donut com cores das categorias.
+  - **EvolucaoSaldoChart** — LineChart com últimos 6 meses (consultando `useAllMonths` + agregando bills/incomes).
+  - **DesempenhoMensalChart** — BarChart 6 meses (renda vs despesa).
+  - **ReceitasVsDespesasChart** — ComposedChart (linha + barra).
+  - **HistoricoFinanceiroChart** — AreaChart cumulativo.
+- Habilitados por padrão: Entradas vs Saídas, Gastos por categoria, Evolução do saldo.
+- Hook novo `src/hooks/useMonthlyAggregates.ts` para buscar e agregar dados dos últimos N meses (uma única query por tabela filtrando por `month_id IN (...)`).
+- Animações: `animate-fade-in` escalonado, transições suaves nas séries (Recharts `isAnimationActive`).
+- Layout responsivo: `ResponsiveContainer`, altura 240px mobile / 320px desktop, grid 1 coluna mobile / 2 colunas desktop.
+
+---
+
+## 3. Sistema de perfil destacado
+
+- No `AppLayout` (header mobile e sidebar desktop), substituir o botão de iniciais simples por um **PerfilButton** mais visível:
+  - Avatar circular com gradient + iniciais, ring sutil, badge de status verde (online/conta ativa).
+  - Nome do usuário ao lado (oculto em telas muito pequenas).
+  - Hover/tap effects: `hover-lift`, `tap-scale`, leve glow.
+- Reformular `src/pages/AjustesPage.tsx` em `src/pages/PerfilPage.tsx` (rota `/perfil`, mantendo `/ajustes` como alias) com seções:
+  - **Cabeçalho**: avatar grande gerado por iniciais (`bg-gradient-hero`), nome editável inline, e-mail, status da conta ("Conta verificada").
+  - **Configurações rápidas**: tema (claro/escuro), ocultar valores, notificações — toggles em cards glass.
+  - **Segurança**: alterar senha, sessões ativas (lista do Supabase), botão sair com confirmação.
+  - **Sobre**: versão do app, política, suporte.
+- Componente `src/components/Avatar.tsx` (wrapper do shadcn `Avatar`) gerando cor de fundo determinística pelo nome.
+
+---
+
+## 4. Área de Investimentos
+
+Nova seção totalmente separada em `/investimentos`, com sub-rotas:
+
+- `/investimentos` — dashboard de investimentos.
+- `/investimentos/novo` — formulário de novo investimento.
+- `/investimentos/:id` — detalhe com gráfico de evolução.
+
+Adicionar item "Investir" no NAV (substituir/complementar — confirmar substituição de "Poupança" não; mantém ambos, "Poupança" continua e "Investir" entra como 6º item visível só no menu desktop e em sheet "Mais" no mobile, ou substitui "Histórico" no bottom nav). **Decisão**: manter os 5 itens atuais no bottom nav e adicionar acesso destacado via card no Dashboard + item no menu desktop.
+
+### Banco de dados (migration)
+
+Criar tabela `investments`:
+
+| coluna | tipo |
+|---|---|
+| name | text |
+| type | text (CDB, Tesouro, Ações, Cripto, Fundo, Outros) |
+| amount_invested | numeric |
+| start_date | date |
+| yield_rate | numeric (percentual) |
+| yield_frequency | text ('daily','weekly','monthly','yearly') |
+| notes | text nullable |
+
+RLS: `auth.uid() = user_id` (ALL).
+
+Tabela `investment_transactions` (opcional para aportes/resgates futuros) — incluir já com mesmas RLS.
+
+### Cálculos (cliente)
+
+`src/lib/investments.ts`:
+- `currentValue(inv, today)` usando juros compostos: `amount * (1 + rate/100)^periods`.
+- `profit = currentValue - amount_invested`.
+- `profitability = profit / amount_invested * 100`.
+- Série temporal para gráfico (1 ponto por período até hoje).
+
+### Telas
+
+- **Dashboard de investimentos** (`InvestimentosPage.tsx`):
+  - Hero card com total investido, lucro total (verde se positivo, destrutivo se negativo, com seta), rentabilidade %.
+  - Cards individuais por investimento, mini-sparkline.
+  - Gráfico de evolução do patrimônio (AreaChart somando todos).
+  - Histórico (lista cronológica).
+- **Novo investimento** (`NovoInvestimentoPage.tsx`): form com todos os campos, preview em tempo real do lucro estimado em 1/6/12 meses.
+- **Detalhe** (`InvestimentoDetalhePage.tsx`): gráfico de crescimento, tabela de rendimentos acumulados, botão excluir.
+
+---
+
+## 5. Polimento visual global
+
+- Garantir uso consistente de `glass`, `shadow-elevated`, `bg-gradient-hero` (já existem em `index.css`).
+- Adicionar utilitários em `tailwind.config.ts` se faltar: `animate-pulse-soft`, `animate-slide-up`.
+- Revisar `pb-bottom-nav` e safe-areas em todas as novas páginas.
+- Ícones lucide minimalistas em todos os novos componentes.
+
+---
+
+## Detalhes técnicos
+
+**Arquivos novos:**
+- `src/components/InstallmentProgressDialog.tsx`
+- `src/components/dashboard/ChartsSection.tsx`
+- `src/components/dashboard/ChartPicker.tsx`
+- `src/components/dashboard/charts/{EntradasVsSaidas,GastosPorCategoria,EvolucaoSaldo,DesempenhoMensal,ReceitasVsDespesas,HistoricoFinanceiro}Chart.tsx`
+- `src/components/Avatar.tsx`
+- `src/hooks/useMonthlyAggregates.ts`
+- `src/hooks/useInvestments.ts`
+- `src/lib/investments.ts`
+- `src/pages/PerfilPage.tsx`
+- `src/pages/investimentos/{InvestimentosPage,NovoInvestimentoPage,InvestimentoDetalhePage}.tsx`
+
+**Arquivos editados:**
+- `src/pages/ContasPage.tsx` (loop sequencial + dialog)
+- `src/pages/Dashboard.tsx` (seção Análises + card de acesso a Investimentos)
+- `src/components/AppLayout.tsx` (PerfilButton destacado, item Investir no sidebar)
+- `src/App.tsx` (novas rotas)
+- `tailwind.config.ts` / `src/index.css` (animações extras se necessário)
+
+**Dependências:** `recharts`.
+
+**Migration:** tabela `investments` (e opcional `investment_transactions`) com RLS por `user_id`.
