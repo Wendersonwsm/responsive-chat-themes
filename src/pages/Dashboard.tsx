@@ -18,6 +18,7 @@ export default function Dashboard() {
   const { data: extras = [] } = useIncomesExtra(month?.id);
   const { data: savings } = useSavings(month?.id);
   const { data: categories = [] } = useCategories();
+  const { data: investments = [] } = useInvestments();
   const [hidden, setHidden] = useState<boolean>(() => localStorage.getItem('finwise-hide') === '1');
 
   const toggleHide = () => {
