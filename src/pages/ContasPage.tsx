@@ -41,6 +41,18 @@ export default function ContasPage() {
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // Installment progress dialog state
+  const [progressOpen, setProgressOpen] = useState(false);
+  const [progressStatus, setProgressStatus] = useState<InstallmentStatus>('idle');
+  const [progressCurrent, setProgressCurrent] = useState(0);
+  const [progressTotal, setProgressTotal] = useState(0);
+  const [progressError, setProgressError] = useState<string | undefined>();
+  const [pendingRetry, setPendingRetry] = useState<{ startAt: number } | null>(null);
+  const [pendingPayload, setPendingPayload] = useState<null | {
+    user_id: string; category: string; subcategory: string | null;
+    description: string; amount: number; due_day: number | null; installment_total: number;
+  }>(null);
+
   const selectedCat = categories.find(c => c.name === category);
 
   const recentDescriptions = useMemo(() => {
