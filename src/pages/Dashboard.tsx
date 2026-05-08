@@ -137,6 +137,29 @@ export default function Dashboard() {
         <p className="text-xs text-muted-foreground mt-2">{bills.filter(b => b.paid).length} de {bills.length} contas pagas</p>
       </Card>
 
+      {/* Investments quick card */}
+      <Link to="/investimentos" className="block tap-scale animate-fade-in" style={{ animationDelay: '210ms' }}>
+        <Card className="p-4 bg-gradient-hero text-primary-foreground border-0 shadow-elevated overflow-hidden relative">
+          <div className="absolute -right-6 -top-6 size-28 rounded-full bg-white/10 blur-2xl" />
+          <div className="relative flex items-center gap-3">
+            <div className="size-12 rounded-2xl bg-white/15 grid place-items-center"><Sparkles className="size-5" /></div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs opacity-90">Investimentos</p>
+              <p className="font-bold text-lg tabular-nums">{mask(fmtMoney(investments.reduce((s, i) => s + currentValue(i), 0)))}</p>
+              <p className="text-[11px] opacity-80">{investments.length} ativo{investments.length !== 1 ? 's' : ''}</p>
+            </div>
+            <ArrowRight className="size-5 opacity-90" />
+          </div>
+        </Card>
+      </Link>
+
+      {/* Charts section */}
+      <ChartsSection
+        income={totalIncome}
+        expenses={totalBills}
+        byCategory={byCategory.map(c => ({ name: c.name, value: c.sum, color: c.color }))}
+      />
+
       {/* Upcoming */}
       {upcoming.length > 0 && (
         <Card className="p-5 animate-fade-in" style={{ animationDelay: '240ms' }}>
