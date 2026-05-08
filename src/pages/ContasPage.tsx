@@ -425,6 +425,16 @@ export default function ContasPage() {
           );
         })}
       </ul>
+
+      <InstallmentProgressDialog
+        open={progressOpen}
+        status={progressStatus}
+        current={progressCurrent}
+        total={progressTotal}
+        errorMessage={progressError}
+        onRetry={() => pendingPayload && pendingRetry && runInstallments(pendingPayload, pendingRetry.startAt)}
+        onClose={() => { setProgressOpen(false); setPendingRetry(null); }}
+      />
     </div>
   );
 }
