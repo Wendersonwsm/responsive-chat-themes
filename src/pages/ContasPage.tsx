@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, ChevronLeft, ChevronRight, Trash2, Check, Repeat, Layers, Copy, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getCategoryIcon } from '@/lib/categoryIcons';
+import InstallmentProgressDialog, { InstallmentStatus } from '@/components/InstallmentProgressDialog';
 
 type Filter = 'current' | 'overdue' | 'paid' | 'all';
 
