@@ -2,11 +2,14 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { todayKey, monthLabel, fmtMoney } from '@/lib/format';
 import { useMonth, useBills, useIncomesExtra, useSavings, useCategories } from '@/hooks/useFinance';
+import { useInvestments } from '@/hooks/useInvestments';
+import { currentValue } from '@/lib/investments';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { TrendingUp, TrendingDown, PiggyBank, Wallet, Eye, EyeOff, Plus, History, ArrowDownToLine, Receipt } from 'lucide-react';
+import { TrendingUp, TrendingDown, PiggyBank, Wallet, Eye, EyeOff, Plus, History, Receipt, Sparkles, ArrowRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getCategoryIcon } from '@/lib/categoryIcons';
+import ChartsSection from '@/components/dashboard/ChartsSection';
 
 export default function Dashboard() {
   const [monthKey] = useState(todayKey());
