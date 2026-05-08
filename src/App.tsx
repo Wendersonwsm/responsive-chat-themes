@@ -12,6 +12,10 @@ import RendaPage from "./pages/RendaPage";
 import PoupancaPage from "./pages/PoupancaPage";
 import HistoricoPage from "./pages/HistoricoPage";
 import AjustesPage from "./pages/AjustesPage";
+import PerfilPage from "./pages/PerfilPage";
+import InvestimentosPage from "./pages/investimentos/InvestimentosPage";
+import NovoInvestimentoPage from "./pages/investimentos/NovoInvestimentoPage";
+import InvestimentoDetalhePage from "./pages/investimentos/InvestimentoDetalhePage";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { queryClient } from "@/lib/queryClient";
@@ -32,6 +36,10 @@ const App = () => (
               <Route path="/poupanca" element={<AppLayout><PoupancaPage /></AppLayout>} />
               <Route path="/historico" element={<AppLayout><HistoricoPage /></AppLayout>} />
               <Route path="/ajustes" element={<AppLayout><AjustesPage /></AppLayout>} />
+              <Route path="/perfil" element={<AppLayout><PerfilPage /></AppLayout>} />
+              <Route path="/investimentos" element={<AppLayout><InvestimentosPage /></AppLayout>} />
+              <Route path="/investimentos/novo" element={<AppLayout><NovoInvestimentoPage /></AppLayout>} />
+              <Route path="/investimentos/:id" element={<AppLayout><InvestimentoDetalhePage /></AppLayout>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
