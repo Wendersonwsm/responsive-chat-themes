@@ -160,6 +160,50 @@ export default function ContasPage() {
     }
   };
 
+  const runInstallments = async (
+    payload: NonNullable<typeof pendingPayload>,
+    startAt = 0,
+  ) => {
+    setProgressOpen(true);
+    setProgressStatus('running');
+    setProgressTotal(payload.installment_total);
+    setProgressCurrent(startAt);
+    setProgressError(undefined);
+
+    try {
+      for (let i = startAt; i < payload.installment_total; i++) {
+        const ymKey = shiftMonth(monthKey, i);
+        const { data: m, error: mErr } = await supabase.from('months')
+          .upsert({ user_id: payload.user_id, year_month: ymKey }, { onConflict: 'user_id,year_month' })
+          .select('id').single();
+        if (mErr || !m) throw mErr || new Error('Falha ao preparar mês');
+        const { error: bErr } = await supabase.from('bills').insert({
+          user_id: payload.user_id, month_id: m.id, category: payload.category,
+          subcategory: payload.subcategory, description: payload.description,
+          amount: payload.amount, due_day: payload.due_day,
+          installment_current: i + 1, installment_total: payload.installment_total,
+          is_recurring: false,
+        });
+        if (bErr) throw bErr;
+        setProgressCurrent(i + 1);
+      }
+      setProgressStatus('success');
+      invalidate();
+      setOpen(false);
+      resetForm();
+      setPendingPayload(null);
+      // Auto-close
+      setTimeout(() => setProgressOpen(false), 1800);
+    } catch (err: any) {
+      setProgressStatus('error');
+      setProgressError(err?.message || 'Não foi possível concluir.');
+      setPendingRetry({ startAt: progressCurrentRef() });
+    }
+  };
+
+  // Helper to read latest progressCurrent without stale closure
+  const progressCurrentRef = () => progressCurrent;
+
   const addBill = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!user || !month || submitting) return;
@@ -169,33 +213,26 @@ export default function ContasPage() {
       return;
     }
     const due_day = Number(dueDay) || null;
-    const installment_total = Number(installments) || null;
+    const installment_total = Number(installments) || 0;
+
+    if (installment_total > 1) {
+      const payload = {
+        user_id: user.id, category, subcategory: subcategory || null,
+        description, amount: amt, due_day, installment_total,
+      };
+      setPendingPayload(payload);
+      await runInstallments(payload, 0);
+      return;
+    }
 
     setSubmitting(true);
-    const t = toast.loading(installment_total && installment_total > 1 ? 'Criando parcelas...' : 'Adicionando conta...');
+    const t = toast.loading('Adicionando conta...');
     try {
-      if (installment_total && installment_total > 1) {
-        const rows = [];
-        for (let i = 0; i < installment_total; i++) {
-          const ymKey = shiftMonth(monthKey, i);
-          const { data: m } = await supabase.from('months')
-            .upsert({ user_id: user.id, year_month: ymKey }, { onConflict: 'user_id,year_month' })
-            .select('id').single();
-          if (m) rows.push({
-            user_id: user.id, month_id: m.id, category, subcategory: subcategory || null,
-            description, amount: amt, due_day,
-            installment_current: i + 1, installment_total, is_recurring: false,
-          });
-        }
-        const { error } = await supabase.from('bills').insert(rows);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('bills').insert({
-          user_id: user.id, month_id: month.id, category, subcategory: subcategory || null,
-          description, amount: amt, due_day, is_recurring: isRecurring,
-        });
-        if (error) throw error;
-      }
+      const { error } = await supabase.from('bills').insert({
+        user_id: user.id, month_id: month.id, category, subcategory: subcategory || null,
+        description, amount: amt, due_day, is_recurring: isRecurring,
+      });
+      if (error) throw error;
       invalidate();
       setOpen(false);
       resetForm();
