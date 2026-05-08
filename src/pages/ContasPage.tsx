@@ -169,6 +169,7 @@ export default function ContasPage() {
     setProgressTotal(payload.installment_total);
     setProgressCurrent(startAt);
     setProgressError(undefined);
+    let lastDone = startAt;
 
     try {
       for (let i = startAt; i < payload.installment_total; i++) {
@@ -185,24 +186,24 @@ export default function ContasPage() {
           is_recurring: false,
         });
         if (bErr) throw bErr;
-        setProgressCurrent(i + 1);
+        lastDone = i + 1;
+        setProgressCurrent(lastDone);
+        // tiny breath so the UI can paint the new value smoothly
+        await new Promise(r => setTimeout(r, 60));
       }
       setProgressStatus('success');
       invalidate();
       setOpen(false);
       resetForm();
       setPendingPayload(null);
-      // Auto-close
+      setPendingRetry(null);
       setTimeout(() => setProgressOpen(false), 1800);
     } catch (err: any) {
       setProgressStatus('error');
       setProgressError(err?.message || 'Não foi possível concluir.');
-      setPendingRetry({ startAt: progressCurrentRef() });
+      setPendingRetry({ startAt: lastDone });
     }
   };
-
-  // Helper to read latest progressCurrent without stale closure
-  const progressCurrentRef = () => progressCurrent;
 
   const addBill = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
