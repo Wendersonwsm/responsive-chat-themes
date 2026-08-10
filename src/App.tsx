@@ -19,6 +19,7 @@ import InvestimentoDetalhePage from "./pages/investimentos/InvestimentoDetalhePa
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { queryClient } from "@/lib/queryClient";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -43,6 +44,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
+          <SpeedInsights />
         </TooltipProvider>
       </AuthProvider>
     </ThemeProvider>
